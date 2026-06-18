@@ -15,34 +15,36 @@ class PIITokenizationService:
     """
     Service for tokenizing PII (Personally Identifiable Information) data.
     
-    This service handles generating tokens, encrypting and decrypting PII data,
-    and interacting with a storage backend that implements the PIIStorageBackend protocol.
+    Uses a PEK/KEK key hierarchy:
+    - KEK (Key Encryption Key): Master key that wraps/unwraps PEKs. Never touches PII directly.
+    - PEK (Presentation Encryption Key): Per-record key that encrypts/decrypts PII data.
+    
+    This design limits blast radius — a compromised PEK exposes only one record.
     """
     
-    def __init__(self, storage: PIIStorageBackend, fernet_key: Optional[bytes] = None):
+    def __init__(self, storage: PIIStorageBackend, kek_key: Optional[bytes] = None):
         """
         Initialize the PII tokenization service.
         
         Args:
             storage: The storage backend implementing PIIStorageBackend protocol.
-            fernet_key: The key to use for encryption and decryption.
-                If None, the key will be read from the FERNET_KEY environment variable.
+            kek_key: The KEK (Key Encryption Key) for wrapping/unwrapping PEKs.
+                If None, reads from the FERNET_KEY environment variable.
                 Raises PIIKeyError if no key is available.
         """
         self.storage = storage
         
-        # Get the Fernet key from the environment variable or use the provided key
-        if fernet_key is None:
-            fernet_key_str = os.environ.get("FERNET_KEY")
-            if fernet_key_str:
-                fernet_key = fernet_key_str.encode()
+        if kek_key is None:
+            kek_key_str = os.environ.get("FERNET_KEY")
+            if kek_key_str:
+                kek_key = kek_key_str.encode()
             else:
                 raise PIIKeyError(
-                    "No encryption key provided. Pass fernet_key to the constructor "
+                    "No encryption key provided. Pass kek_key to the constructor "
                     "or set the FERNET_KEY environment variable."
                 )
         
-        self.fernet = Fernet(fernet_key)
+        self.kek = Fernet(kek_key)
     
     @staticmethod
     def generate_token() -> str:
@@ -54,47 +56,43 @@ class PIITokenizationService:
         """
         return secrets.token_urlsafe(16)
     
-    def encrypt_pii(self, data: str) -> str:
-        """
-        Encrypt PII data.
-        
-        Args:
-            data: The PII data to encrypt.
-        
-        Returns:
-            The encrypted PII data.
-            
-        Raises:
-            PIIEncryptionError: If encryption fails.
-        """
+    def _encrypt_with_pek(self, data: str, pek: Fernet) -> str:
+        """Encrypt data using a PEK."""
         try:
-            return self.fernet.encrypt(data.encode()).decode()
+            return pek.encrypt(data.encode()).decode()
         except Exception as e:
             raise PIIEncryptionError(f"Failed to encrypt PII data: {str(e)}")
     
-    def decrypt_pii(self, data: str) -> str:
-        """
-        Decrypt PII data.
-        
-        Args:
-            data: The encrypted PII data to decrypt.
-        
-        Returns:
-            The decrypted PII data.
-            
-        Raises:
-            PIIDecryptionError: If decryption fails or token is invalid.
-        """
+    def _decrypt_with_pek(self, data: str, pek: Fernet) -> str:
+        """Decrypt data using a PEK."""
         try:
-            return self.fernet.decrypt(data.encode()).decode()
+            return pek.decrypt(data.encode()).decode()
         except InvalidToken:
             raise PIIDecryptionError("Invalid or tampered encrypted data")
         except Exception as e:
             raise PIIDecryptionError(f"Failed to decrypt PII data: {str(e)}")
     
+    def _wrap_pek(self, pek_key: bytes) -> str:
+        """Wrap a PEK with the KEK."""
+        try:
+            return self.kek.encrypt(pek_key).decode()
+        except Exception as e:
+            raise PIIEncryptionError(f"Failed to wrap encryption key: {str(e)}")
+    
+    def _unwrap_pek(self, encrypted_pek: str) -> bytes:
+        """Unwrap a PEK using the KEK."""
+        try:
+            return self.kek.decrypt(encrypted_pek.encode())
+        except InvalidToken:
+            raise PIIDecryptionError("Invalid or tampered encryption key")
+        except Exception as e:
+            raise PIIDecryptionError(f"Failed to unwrap encryption key: {str(e)}")
+    
     async def tokenize_pii(self, pii_data: Dict[str, str]) -> str:
         """
         Tokenize PII data by encrypting it and storing it in the backend.
+        
+        Each token gets its own PEK, wrapped by the KEK for storage.
         
         Args:
             pii_data: A dictionary containing the PII data.
@@ -103,17 +101,17 @@ class PIITokenizationService:
         Returns:
             A token that can be used to retrieve the PII data.
         """
-        # Generate a token
         token = self.generate_token()
+        pek_key = Fernet.generate_key()
+        pek = Fernet(pek_key)
         
-        # Encrypt each field in the PII data
         encrypted_data = {
-            field: self.encrypt_pii(value)
+            field: self._encrypt_with_pek(value, pek)
             for field, value in pii_data.items()
         }
+        encrypted_pek = self._wrap_pek(pek_key)
         
-        # Store the encrypted data in the backend
-        await self.storage.store_pii(token, encrypted_data)
+        await self.storage.store_pii(token, encrypted_pek, encrypted_data)
         
         return token
     
@@ -127,23 +125,25 @@ class PIITokenizationService:
         Returns:
             The decrypted PII data, or None if no data was found for the token.
         """
-        # Retrieve the encrypted data from the backend
-        encrypted_data = await self.storage.get_pii(token)
+        result = await self.storage.get_pii(token)
         
-        if encrypted_data is None:
+        if result is None:
             return None
         
-        # Decrypt each field in the PII data
-        decrypted_data = {
-            field: self.decrypt_pii(value)
+        encrypted_pek, encrypted_data = result
+        pek_key = self._unwrap_pek(encrypted_pek)
+        pek = Fernet(pek_key)
+        
+        return {
+            field: self._decrypt_with_pek(value, pek)
             for field, value in encrypted_data.items()
         }
-        
-        return decrypted_data
     
     async def update_pii(self, token: str, pii_data: Dict[str, str]) -> bool:
         """
         Update PII data for an existing token.
+        
+        Generates a new PEK for the updated data.
         
         Args:
             token: The token used to store the PII data.
@@ -153,14 +153,16 @@ class PIITokenizationService:
         Returns:
             True if the data was updated, False otherwise.
         """
-        # Encrypt each field in the PII data
+        pek_key = Fernet.generate_key()
+        pek = Fernet(pek_key)
+        
         encrypted_data = {
-            field: self.encrypt_pii(value)
+            field: self._encrypt_with_pek(value, pek)
             for field, value in pii_data.items()
         }
+        encrypted_pek = self._wrap_pek(pek_key)
         
-        # Update the encrypted data in the backend
-        return await self.storage.update_pii(token, encrypted_data)
+        return await self.storage.update_pii(token, encrypted_pek, encrypted_data)
     
     async def delete_pii(self, token: str) -> bool:
         """

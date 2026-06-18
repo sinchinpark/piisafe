@@ -15,12 +15,10 @@ async def test_tokenize_and_retrieve(pii_service):
     """Test tokenizing and retrieving PII data."""
     pii_data = {"email": "test@example.com", "ssn": "123-45-6789"}
     
-    # Tokenize
     token = await pii_service.tokenize_pii(pii_data)
     assert token is not None
     assert len(token) > 0
     
-    # Retrieve
     retrieved_data = await pii_service.retrieve_pii(token)
     assert retrieved_data == pii_data
 
@@ -37,15 +35,12 @@ async def test_update_pii(pii_service):
     """Test updating PII data."""
     pii_data = {"email": "test@example.com"}
     
-    # Tokenize
     token = await pii_service.tokenize_pii(pii_data)
     
-    # Update
     updated_data = {"email": "updated@example.com", "phone": "555-1234"}
     success = await pii_service.update_pii(token, updated_data)
     assert success is True
     
-    # Verify update
     retrieved_data = await pii_service.retrieve_pii(token)
     assert retrieved_data == updated_data
 
@@ -62,14 +57,11 @@ async def test_delete_pii(pii_service):
     """Test deleting PII data."""
     pii_data = {"email": "test@example.com"}
     
-    # Tokenize
     token = await pii_service.tokenize_pii(pii_data)
     
-    # Delete
     success = await pii_service.delete_pii(token)
     assert success is True
     
-    # Verify deletion
     retrieved_data = await pii_service.retrieve_pii(token)
     assert retrieved_data is None
 
@@ -84,28 +76,34 @@ async def test_delete_nonexistent_token(pii_service):
 @pytest.mark.asyncio
 async def test_decrypt_tampered_data(storage_backend, fernet_key):
     """Test that decrypting tampered data raises PIIDecryptionError."""
-    service = PIITokenizationService(storage=storage_backend, fernet_key=fernet_key)
+    service = PIITokenizationService(storage=storage_backend, kek_key=fernet_key)
     
-    # Store valid encrypted data
+    # Create a valid wrapped PEK
+    kek = Fernet(fernet_key)
+    pek_key = Fernet.generate_key()
+    encrypted_pek = kek.encrypt(pek_key).decode()
+    
+    # Store with tampered encrypted data
     token = "test-token"
-    await storage_backend.store_pii(token, {"field": "tampered-invalid-data"})
+    await storage_backend.store_pii(token, encrypted_pek, {"field": "tampered-invalid-data"})
     
-    # Attempt to retrieve should raise PIIDecryptionError
     with pytest.raises(PIIDecryptionError):
         await service.retrieve_pii(token)
 
 
-def test_key_from_environment(storage_backend, monkeypatch):
+@pytest.mark.asyncio
+async def test_key_from_environment(storage_backend, monkeypatch):
     """Test that the service reads the key from FERNET_KEY environment variable."""
     test_key = Fernet.generate_key()
     monkeypatch.setenv("FERNET_KEY", test_key.decode())
     
     service = PIITokenizationService(storage=storage_backend)
     
-    # Verify the key was loaded correctly by encrypting and decrypting
-    encrypted = service.encrypt_pii("test")
-    decrypted = service.decrypt_pii(encrypted)
-    assert decrypted == "test"
+    # Verify the key was loaded by doing a round-trip
+    pii_data = {"field": "test"}
+    token = await service.tokenize_pii(pii_data)
+    retrieved = await service.retrieve_pii(token)
+    assert retrieved == pii_data
 
 
 def test_key_missing_raises_error(storage_backend, monkeypatch):
@@ -121,19 +119,52 @@ def test_generate_token():
     token1 = PIITokenizationService.generate_token()
     token2 = PIITokenizationService.generate_token()
     
-    # Tokens should be unique
     assert token1 != token2
-    
-    # Tokens should be URL-safe
     assert all(c.isalnum() or c in "-_" for c in token1)
     assert all(c.isalnum() or c in "-_" for c in token2)
 
 
-def test_encrypt_decrypt_roundtrip(pii_service):
-    """Test that encryption and decryption are reversible."""
-    original = "sensitive data"
-    encrypted = pii_service.encrypt_pii(original)
-    decrypted = pii_service.decrypt_pii(encrypted)
+@pytest.mark.asyncio
+async def test_unique_pek_per_token(pii_service, storage_backend):
+    """Test that each token uses a unique PEK."""
+    pii_data = {"email": "test@example.com"}
     
-    assert encrypted != original
-    assert decrypted == original
+    token1 = await pii_service.tokenize_pii(pii_data)
+    token2 = await pii_service.tokenize_pii(pii_data)
+    
+    result1 = await storage_backend.get_pii(token1)
+    result2 = await storage_backend.get_pii(token2)
+    
+    encrypted_pek1, _ = result1
+    encrypted_pek2, _ = result2
+    
+    assert encrypted_pek1 != encrypted_pek2
+
+
+@pytest.mark.asyncio
+async def test_kek_can_re_wrap_pek(storage_backend, fernet_key):
+    """Test that rotating the KEK only requires re-wrapping PEKs, not re-encrypting data."""
+    kek1 = Fernet(fernet_key)
+    
+    # Encrypt data with first KEK
+    service1 = PIITokenizationService(storage=storage_backend, kek_key=fernet_key)
+    pii_data = {"email": "test@example.com"}
+    token = await service1.tokenize_pii(pii_data)
+    
+    # Get the encrypted PEK and data
+    encrypted_pek, encrypted_data = await storage_backend.get_pii(token)
+    
+    # Unwrap PEK with old KEK, re-wrap with new KEK
+    new_kek_key = Fernet.generate_key()
+    kek2 = Fernet(new_kek_key)
+    
+    pek_key = kek1.decrypt(encrypted_pek.encode())
+    new_encrypted_pek = kek2.encrypt(pek_key).decode()
+    
+    # Update storage with re-wrapped PEK (same encrypted data)
+    await storage_backend.update_pii(token, new_encrypted_pek, encrypted_data)
+    
+    # Verify data is still accessible with new KEK
+    service2 = PIITokenizationService(storage=storage_backend, kek_key=new_kek_key)
+    retrieved = await service2.retrieve_pii(token)
+    assert retrieved == pii_data
