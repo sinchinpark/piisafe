@@ -4,6 +4,10 @@ Data models for PII tokenization using standard library dataclasses.
 from dataclasses import dataclass, field
 from typing import Dict
 
+MAX_FIELDS = 50
+MAX_KEY_LENGTH = 256
+MAX_VALUE_LENGTH = 10_000
+
 
 @dataclass
 class PIIData:
@@ -14,8 +18,15 @@ class PIIData:
         """Validate data after initialization."""
         if not isinstance(self.data, dict):
             raise TypeError("data must be a dictionary")
-        if not all(isinstance(k, str) and isinstance(v, str) for k, v in self.data.items()):
-            raise TypeError("all keys and values must be strings")
+        if len(self.data) > MAX_FIELDS:
+            raise ValueError(f"data exceeds maximum of {MAX_FIELDS} fields")
+        for k, v in self.data.items():
+            if not isinstance(k, str) or not isinstance(v, str):
+                raise TypeError("all keys and values must be strings")
+            if len(k) > MAX_KEY_LENGTH:
+                raise ValueError(f"key exceeds maximum length of {MAX_KEY_LENGTH}")
+            if len(v) > MAX_VALUE_LENGTH:
+                raise ValueError(f"value exceeds maximum length of {MAX_VALUE_LENGTH}")
 
 
 @dataclass

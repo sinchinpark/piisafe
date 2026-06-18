@@ -58,3 +58,22 @@ def test_token_response_non_string():
     """Test TokenResponse with non-string raises ValueError."""
     with pytest.raises(ValueError, match="token must be a non-empty string"):
         TokenResponse(token=None)
+
+
+def test_pii_data_too_many_fields():
+    """Test PIIData with too many fields raises ValueError."""
+    data = {f"field{i}": f"value{i}" for i in range(51)}
+    with pytest.raises(ValueError, match="exceeds maximum of 50 fields"):
+        PIIData(data=data)
+
+
+def test_pii_data_key_too_long():
+    """Test PIIData with key exceeding max length raises ValueError."""
+    with pytest.raises(ValueError, match="key exceeds maximum length"):
+        PIIData(data={"a" * 257: "value"})
+
+
+def test_pii_data_value_too_long():
+    """Test PIIData with value exceeding max length raises ValueError."""
+    with pytest.raises(ValueError, match="value exceeds maximum length"):
+        PIIData(data={"key": "a" * 10001})
