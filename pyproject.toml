@@ -1,0 +1,49 @@
+[project]
+name = "python-pii"
+version = "0.1.0"
+description = "Framework-agnostic PII tokenization service for Python web applications"
+requires-python = ">=3.11"
+dependencies = [
+    "cryptography>=42",
+]
+
+[project.optional-dependencies]
+fastapi = [
+    "fastapi>=0.115",
+    "pydantic>=2.0",
+]
+flask = [
+    "flask>=2.3",
+]
+sanic = [
+    "sanic>=23.0",
+]
+all = [
+    "fastapi>=0.115",
+    "pydantic>=2.0",
+    "flask>=2.3",
+    "sanic>=23.0",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "httpx>=0.24",
+    "fastapi>=0.115",
+    "pydantic>=2.0",
+    "flask>=2.3",
+    "sanic>=23.0",
+    "sanic-testing>=23.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["python_pii"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
