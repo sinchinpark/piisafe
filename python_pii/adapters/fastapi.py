@@ -58,7 +58,7 @@ class FastAPIAdapter(BaseAdapter):
             """Retrieve PII data using a token."""
             pii_data = await self.service.retrieve_pii(token)
             if pii_data is None:
-                raise PIITokenNotFoundError(f"PII data not found for token: {token}")
+                raise PIITokenNotFoundError("PII data not found for the provided token")
             return PIIDataRequest(data=pii_data)
         
         @router.put("/update/{token}", response_model=TokenResponseModel)
@@ -66,7 +66,7 @@ class FastAPIAdapter(BaseAdapter):
             """Update PII data for an existing token."""
             success = await self.service.update_pii(token, pii_data.data)
             if not success:
-                raise PIITokenNotFoundError(f"PII data not found for token: {token}")
+                raise PIITokenNotFoundError("PII data not found for the provided token")
             return TokenResponseModel(token=token)
         
         @router.delete("/delete/{token}", status_code=status.HTTP_204_NO_CONTENT)
@@ -74,7 +74,7 @@ class FastAPIAdapter(BaseAdapter):
             """Delete PII data for a token."""
             success = await self.service.delete_pii(token)
             if not success:
-                raise PIITokenNotFoundError(f"PII data not found for token: {token}")
+                raise PIITokenNotFoundError("PII data not found for the provided token")
         
         return router
     

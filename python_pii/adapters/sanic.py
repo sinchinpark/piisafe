@@ -55,7 +55,7 @@ class SanicAdapter(BaseAdapter):
             """Retrieve PII data using a token."""
             pii_data = await self.service.retrieve_pii(token)
             if pii_data is None:
-                raise PIITokenNotFoundError(f"PII data not found for token: {token}")
+                raise PIITokenNotFoundError("PII data not found for the provided token")
             return json({"data": pii_data}, status=200)
         
         @bp.put('/update/<token>')
@@ -66,7 +66,7 @@ class SanicAdapter(BaseAdapter):
                 pii_data = PIIData(**data)
                 success = await self.service.update_pii(token, pii_data.data)
                 if not success:
-                    raise PIITokenNotFoundError(f"PII data not found for token: {token}")
+                    raise PIITokenNotFoundError("PII data not found for the provided token")
                 return json({"token": token}, status=200)
             except (TypeError, ValueError) as e:
                 return json({"error": "VALIDATION_ERROR", "message": str(e)}, status=400)
@@ -76,7 +76,7 @@ class SanicAdapter(BaseAdapter):
             """Delete PII data for a token."""
             success = await self.service.delete_pii(token)
             if not success:
-                raise PIITokenNotFoundError(f"PII data not found for token: {token}")
+                raise PIITokenNotFoundError("PII data not found for the provided token")
             return json({}, status=204)
         
         return bp

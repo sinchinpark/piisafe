@@ -69,7 +69,7 @@ class FlaskAdapter(BaseAdapter):
             """Retrieve PII data using a token."""
             pii_data = await self.service.retrieve_pii(token)
             if pii_data is None:
-                raise PIITokenNotFoundError(f"PII data not found for token: {token}")
+                raise PIITokenNotFoundError("PII data not found for the provided token")
             return jsonify({"data": pii_data}), 200
         
         @bp.route('/update/<token>', methods=['PUT'])
@@ -81,7 +81,7 @@ class FlaskAdapter(BaseAdapter):
                 pii_data = PIIData(**data)
                 success = await self.service.update_pii(token, pii_data.data)
                 if not success:
-                    raise PIITokenNotFoundError(f"PII data not found for token: {token}")
+                    raise PIITokenNotFoundError("PII data not found for the provided token")
                 return jsonify({"token": token}), 200
             except (TypeError, ValueError) as e:
                 return jsonify({"error": "VALIDATION_ERROR", "message": str(e)}), 400
@@ -92,7 +92,7 @@ class FlaskAdapter(BaseAdapter):
             """Delete PII data for a token."""
             success = await self.service.delete_pii(token)
             if not success:
-                raise PIITokenNotFoundError(f"PII data not found for token: {token}")
+                raise PIITokenNotFoundError("PII data not found for the provided token")
             return '', 204
         
         self.blueprint = bp
