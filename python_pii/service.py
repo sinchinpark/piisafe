@@ -1,17 +1,14 @@
 """
 PII tokenization service with encryption/decryption capabilities.
 """
-import logging
 import os
 import secrets
 from typing import Dict, Optional
 
 from cryptography.fernet import Fernet, InvalidToken
 
-from python_pii.exceptions import PIIDecryptionError, PIIEncryptionError
+from python_pii.exceptions import PIIDecryptionError, PIIEncryptionError, PIIKeyError
 from python_pii.protocols import PIIStorageBackend
-
-logger = logging.getLogger(__name__)
 
 
 class PIITokenizationService:
@@ -30,7 +27,7 @@ class PIITokenizationService:
             storage: The storage backend implementing PIIStorageBackend protocol.
             fernet_key: The key to use for encryption and decryption.
                 If None, the key will be read from the FERNET_KEY environment variable.
-                If the environment variable is not set, a new key will be generated.
+                Raises PIIKeyError if no key is available.
         """
         self.storage = storage
         
@@ -40,11 +37,9 @@ class PIITokenizationService:
             if fernet_key_str:
                 fernet_key = fernet_key_str.encode()
             else:
-                # Generate a new key if none is provided or found in the environment
-                fernet_key = Fernet.generate_key()
-                logger.warning(
-                    f"No Fernet key provided or found in environment. Generated new key: {fernet_key.decode()}. "
-                    "It is recommended to store this key securely and provide it via the FERNET_KEY environment variable."
+                raise PIIKeyError(
+                    "No encryption key provided. Pass fernet_key to the constructor "
+                    "or set the FERNET_KEY environment variable."
                 )
         
         self.fernet = Fernet(fernet_key)

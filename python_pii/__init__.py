@@ -5,6 +5,7 @@ from python_pii.exceptions import (
     PIIDecryptionError,
     PIIEncryptionError,
     PIIError,
+    PIIKeyError,
     PIITokenInvalidError,
     PIITokenNotFoundError,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "PIITokenInvalidError",
     "PIIEncryptionError",
     "PIIDecryptionError",
+    "PIIKeyError",
 ]
 
 __version__ = "0.1.0"

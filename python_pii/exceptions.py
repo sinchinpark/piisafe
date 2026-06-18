@@ -55,3 +55,14 @@ class PIIDecryptionError(PIIError):
             status_code=500,
             code="PII_DECRYPTION_ERROR"
         )
+
+
+class PIIKeyError(PIIError):
+    """Raised when encryption key is missing or cannot be loaded."""
+    
+    def __init__(self, message: str = "Encryption key not configured"):
+        super().__init__(
+            message=message,
+            status_code=500,
+            code="PII_KEY_ERROR"
+        )

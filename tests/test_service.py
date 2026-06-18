@@ -1,13 +1,12 @@
 """
 Tests for PIITokenizationService.
 """
-import logging
 import os
 
 import pytest
 from cryptography.fernet import Fernet
 
-from python_pii import PIIDecryptionError, PIIEncryptionError, PIITokenizationService
+from python_pii import PIIDecryptionError, PIIEncryptionError, PIIKeyError, PIITokenizationService
 from tests.conftest import InMemoryPIIBackend
 
 
@@ -109,16 +108,12 @@ def test_key_from_environment(storage_backend, monkeypatch):
     assert decrypted == "test"
 
 
-def test_key_auto_generated_warning(storage_backend, monkeypatch, caplog):
-    """Test that a warning is logged when no key is provided."""
-    # Remove FERNET_KEY from environment
+def test_key_missing_raises_error(storage_backend, monkeypatch):
+    """Test that PIIKeyError is raised when no key is provided."""
     monkeypatch.delenv("FERNET_KEY", raising=False)
     
-    with caplog.at_level(logging.WARNING):
-        service = PIITokenizationService(storage=storage_backend)
-    
-    # Check that a warning was logged
-    assert any("No Fernet key provided" in record.message for record in caplog.records)
+    with pytest.raises(PIIKeyError, match="No encryption key provided"):
+        PIITokenizationService(storage=storage_backend)
 
 
 def test_generate_token():
