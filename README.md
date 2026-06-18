@@ -44,24 +44,24 @@ uv add python-pii[fastapi]
 ### 1. Implement a Storage Backend
 
 ```python
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 from python_pii import PIIStorageBackend
 
 class InMemoryPIIBackend:
     """Simple in-memory storage (for demo purposes only)."""
     
     def __init__(self):
-        self._storage: Dict[str, Dict[str, str]] = {}
+        self._storage: Dict[str, Tuple[str, Dict[str, str]]] = {}
     
-    async def store_pii(self, token: str, encrypted_data: Dict[str, str]) -> None:
-        self._storage[token] = encrypted_data
+    async def store_pii(self, token: str, encrypted_pek: str, encrypted_data: Dict[str, str]) -> None:
+        self._storage[token] = (encrypted_pek, encrypted_data)
     
-    async def get_pii(self, token: str) -> Optional[Dict[str, str]]:
+    async def get_pii(self, token: str) -> Optional[Tuple[str, Dict[str, str]]]:
         return self._storage.get(token)
     
-    async def update_pii(self, token: str, encrypted_data: Dict[str, str]) -> bool:
+    async def update_pii(self, token: str, encrypted_pek: str, encrypted_data: Dict[str, str]) -> bool:
         if token in self._storage:
-            self._storage[token] = encrypted_data
+            self._storage[token] = (encrypted_pek, encrypted_data)
             return True
         return False
     
@@ -85,7 +85,7 @@ app = FastAPI()
 # Initialize storage backend
 storage = InMemoryPIIBackend()
 
-# Create PII service (uses FERNET_KEY env var or generates one)
+# Create PII service (requires FERNET_KEY env var)
 pii_service = PIITokenizationService(storage=storage)
 
 # Add exception handler at app level
@@ -213,9 +213,9 @@ Delete PII data for a token.
 
 ## Configuration
 
-### Encryption Key
+### Encryption Key (KEK)
 
-Set the `FERNET_KEY` environment variable:
+The `FERNET_KEY` environment variable or `kek_key` parameter provides the Key Encryption Key (KEK).
 
 ```bash
 # Generate a key
@@ -231,23 +231,25 @@ Or pass it directly:
 from cryptography.fernet import Fernet
 
 key = Fernet.generate_key()
-pii_service = PIITokenizationService(storage=storage, fernet_key=key)
+pii_service = PIITokenizationService(storage=storage, kek_key=key)
 ```
 
 ## Storage Backend Protocol
 
-Any class implementing these four async methods can be used:
+Any class implementing these async methods can be used:
 
 ```python
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 from python_pii import PIIStorageBackend
 
 class PIIStorageBackend(Protocol):
-    async def store_pii(self, token: str, encrypted_data: Dict[str, str]) -> None: ...
-    async def get_pii(self, token: str) -> Optional[Dict[str, str]]: ...
-    async def update_pii(self, token: str, encrypted_data: Dict[str, str]) -> bool: ...
+    async def store_pii(self, token: str, encrypted_pek: str, encrypted_data: Dict[str, str]) -> None: ...
+    async def get_pii(self, token: str) -> Optional[Tuple[str, Dict[str, str]]]: ...
+    async def update_pii(self, token: str, encrypted_pek: str, encrypted_data: Dict[str, str]) -> bool: ...
     async def delete_pii(self, token: str) -> bool: ...
 ```
+
+The `encrypted_pek` is the PEK wrapped by the KEK. Store it alongside the encrypted data.
 
 ## Exception Handling
 
@@ -258,6 +260,7 @@ The package provides these exceptions:
 - `PIITokenInvalidError` - 400: Invalid token format
 - `PIIEncryptionError` - 500: Encryption failed
 - `PIIDecryptionError` - 500: Decryption failed (invalid/tampered data)
+- `PIIKeyError` - 500: Encryption key not configured
 
 ### FastAPI Exception Handling
 
@@ -286,39 +289,40 @@ Exception handling is built into the Sanic adapter via `@bp.exception(PIIError)`
 
 ```python
 import json
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 import aiomysql
 
 class MariaDBPIIBackend:
     def __init__(self, db_pool: aiomysql.Pool, table_name: str = "pii_records"):
         self.pool = db_pool
+        # SECURITY: table_name must be a trusted constant, never user input
         self.table_name = table_name
     
-    async def store_pii(self, token: str, encrypted_data: Dict[str, str]) -> None:
+    async def store_pii(self, token: str, encrypted_pek: str, encrypted_data: Dict[str, str]) -> None:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(
-                    f"INSERT INTO {self.table_name} (token, encrypted_data) VALUES (%s, %s)",
-                    (token, json.dumps(encrypted_data))
+                    f"INSERT INTO {self.table_name} (token, encrypted_pek, encrypted_data) VALUES (%s, %s, %s)",
+                    (token, encrypted_pek, json.dumps(encrypted_data))
                 )
                 await conn.commit()
     
-    async def get_pii(self, token: str) -> Optional[Dict[str, str]]:
+    async def get_pii(self, token: str) -> Optional[Tuple[str, Dict[str, str]]]:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(
-                    f"SELECT encrypted_data FROM {self.table_name} WHERE token = %s",
+                    f"SELECT encrypted_pek, encrypted_data FROM {self.table_name} WHERE token = %s",
                     (token,)
                 )
                 result = await cursor.fetchone()
-                return json.loads(result[0]) if result else None
+                return (result[0], json.loads(result[1])) if result else None
     
-    async def update_pii(self, token: str, encrypted_data: Dict[str, str]) -> bool:
+    async def update_pii(self, token: str, encrypted_pek: str, encrypted_data: Dict[str, str]) -> bool:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(
-                    f"UPDATE {self.table_name} SET encrypted_data = %s WHERE token = %s",
-                    (json.dumps(encrypted_data), token)
+                    f"UPDATE {self.table_name} SET encrypted_pek = %s, encrypted_data = %s WHERE token = %s",
+                    (encrypted_pek, json.dumps(encrypted_data), token)
                 )
                 await conn.commit()
                 return cursor.rowcount > 0
@@ -432,10 +436,34 @@ Contributions are welcome! Please ensure:
 
 ## Security
 
+**IMPORTANT: The adapters expose unauthenticated endpoints.** You MUST add your own authentication/authorization layer before deploying in production:
+
+- **FastAPI**: Use `Depends()` with OAuth2 or API key validation
+- **Flask**: Use `@login_required` or similar middleware
+- **Sanic**: Use Sanic's built-in middleware or authentication decorators
+
+### Key Management
+
+This package uses a **PEK/KEK key hierarchy**:
+
+- **KEK (Key Encryption Key)**: Master key that wraps/unwraps PEKs. Set via `FERNET_KEY` env var or `kek_key` parameter.
+- **PEK (Presentation Encryption Key)**: Per-record key that encrypts/decrypts PII data. Generated automatically for each token.
+
+This design limits blast radius — a compromised PEK exposes only one record.
+
+```bash
+# Generate a key
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+# Set it
+export FERNET_KEY="your-generated-key-here"
+```
+
+### Best Practices
+
 - Always use a secure `FERNET_KEY` in production
 - Store the key securely (environment variables, secrets manager)
 - Never commit keys to version control
-- Rotate keys periodically (requires re-encryption of existing data)
 - Use HTTPS in production to protect tokens in transit
 
 ## Roadmap
