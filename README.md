@@ -442,7 +442,7 @@ export FERNET_KEY="your-generated-key-here"
 
 ## Roadmap
 
-- [ ] Key rotation support
+- [x] Key rotation support
 - [ ] Additional storage backends (Redis, PostgreSQL)
 - [ ] Token expiration/TTL
 - [ ] Audit logging
