@@ -58,7 +58,7 @@ class PIIDecryptionError(PIIError):
 
 
 class PIIKeyError(PIIError):
-    """Raised when encryption key is missing or cannot be loaded."""
+    """Raised when the encryption key is missing or cannot be loaded."""
     
     def __init__(self, message: str = "Encryption key not configured"):
         super().__init__(
