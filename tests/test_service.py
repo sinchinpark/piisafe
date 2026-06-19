@@ -8,7 +8,7 @@ from cryptography.fernet import Fernet
 from python_pii import PIIDecryptionError, PIIKeyError, PIITokenizationService
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_tokenize_and_retrieve(pii_service):
     """Test tokenizing and retrieving PII data."""
     pii_data = {"email": "test@example.com", "ssn": "123-45-6789"}
@@ -21,14 +21,14 @@ async def test_tokenize_and_retrieve(pii_service):
     assert retrieved_data == pii_data
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_retrieve_nonexistent_token(pii_service):
     """Test retrieving a token that doesn't exist."""
     result = await pii_service.retrieve_pii("nonexistent-token")
     assert result is None
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_update_pii(pii_service):
     """Test updating PII data."""
     pii_data = {"email": "test@example.com"}
@@ -43,14 +43,14 @@ async def test_update_pii(pii_service):
     assert retrieved_data == updated_data
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_update_nonexistent_token(pii_service):
     """Test updating a token that doesn't exist."""
     success = await pii_service.update_pii("nonexistent-token", {"email": "test@example.com"})
     assert success is False
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_delete_pii(pii_service):
     """Test deleting PII data."""
     pii_data = {"email": "test@example.com"}
@@ -64,14 +64,14 @@ async def test_delete_pii(pii_service):
     assert retrieved_data is None
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_delete_nonexistent_token(pii_service):
     """Test deleting a token that doesn't exist."""
     success = await pii_service.delete_pii("nonexistent-token")
     assert success is False
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_decrypt_tampered_data(storage_backend, fernet_key):
     """Test that decrypting tampered data raises PIIDecryptionError."""
     service = PIITokenizationService(storage=storage_backend, kek_key=fernet_key)
@@ -89,7 +89,7 @@ async def test_decrypt_tampered_data(storage_backend, fernet_key):
         await service.retrieve_pii(token)
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_key_from_environment(storage_backend, monkeypatch):
     """Test that the service reads the key from FERNET_KEY environment variable."""
     test_key = Fernet.generate_key()
@@ -122,7 +122,7 @@ def test_generate_token():
     assert all(c.isalnum() or c in "-_" for c in token2)
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_unique_pek_per_token(pii_service, storage_backend):
     """Test that each token uses a unique PEK."""
     pii_data = {"email": "test@example.com"}
@@ -139,7 +139,7 @@ async def test_unique_pek_per_token(pii_service, storage_backend):
     assert encrypted_pek1 != encrypted_pek2
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_kek_can_re_wrap_pek(storage_backend, fernet_key):
     """Test that rotating the KEK only requires re-wrapping PEKs, not re-encrypting data."""
     kek1 = Fernet(fernet_key)
