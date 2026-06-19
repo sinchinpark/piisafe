@@ -56,14 +56,16 @@ class PIITokenizationService:
         """
         return secrets.token_urlsafe(16)
     
-    def _encrypt_with_pek(self, data: str, pek: Fernet) -> str:
+    @staticmethod
+    def _encrypt_with_pek(data: str, pek: Fernet) -> str:
         """Encrypt data using a PEK."""
         try:
             return pek.encrypt(data.encode()).decode()
         except Exception as e:
             raise PIIEncryptionError(f"Failed to encrypt PII data: {str(e)}")
     
-    def _decrypt_with_pek(self, data: str, pek: Fernet) -> str:
+    @staticmethod
+    def _decrypt_with_pek(data: str, pek: Fernet) -> str:
         """Decrypt data using a PEK."""
         try:
             return pek.decrypt(data.encode()).decode()
