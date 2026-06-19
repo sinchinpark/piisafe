@@ -4,7 +4,7 @@ PII tokenization service with encryption/decryption capabilities.
 import logging
 import os
 import secrets
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from cryptography.fernet import Fernet, InvalidToken, MultiFernet
 
