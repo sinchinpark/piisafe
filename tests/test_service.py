@@ -74,7 +74,7 @@ async def test_delete_nonexistent_token(pii_service):
 @pytest.mark.anyio
 async def test_decrypt_tampered_data(storage_backend, fernet_key):
     """Test that decrypting tampered data raises PIIDecryptionError."""
-    service = PIITokenizationService(storage=storage_backend, kek_key=fernet_key)
+    service = PIITokenizationService(storage=storage_backend, kek_keys=fernet_key)
     
     # Create a valid wrapped PEK
     kek = Fernet(fernet_key)
@@ -118,7 +118,7 @@ def test_invalid_kek_raises_key_error(storage_backend, monkeypatch):
     monkeypatch.delenv("FERNET_KEYS", raising=False)
 
     with pytest.raises(PIIKeyError, match="Invalid KEK"):
-        PIITokenizationService(storage=storage_backend, kek_key=b"not-a-valid-fernet-key")
+        PIITokenizationService(storage=storage_backend, kek_keys=b"not-a-valid-fernet-key")
 
 
 def test_invalid_kek_in_list_raises_key_error(storage_backend, monkeypatch):
@@ -167,7 +167,7 @@ async def test_kek_can_re_wrap_pek(storage_backend, fernet_key):
     kek1 = Fernet(fernet_key)
     
     # Encrypt data with first KEK
-    service1 = PIITokenizationService(storage=storage_backend, kek_key=fernet_key)
+    service1 = PIITokenizationService(storage=storage_backend, kek_keys=fernet_key)
     pii_data = {"email": "test@example.com"}
     token = await service1.tokenize_pii(pii_data)
     
@@ -185,7 +185,7 @@ async def test_kek_can_re_wrap_pek(storage_backend, fernet_key):
     await storage_backend.update_pii(token, new_encrypted_pek, encrypted_data)
     
     # Verify data is still accessible with new KEK
-    service2 = PIITokenizationService(storage=storage_backend, kek_key=new_kek_key)
+    service2 = PIITokenizationService(storage=storage_backend, kek_keys=new_kek_key)
     retrieved = await service2.retrieve_pii(token)
     assert retrieved == pii_data
 
@@ -200,7 +200,7 @@ async def test_multi_key_decrypt(storage_backend):
     new_key = Fernet.generate_key()
     
     # Create service with old key, encrypt real data
-    service_old = PIITokenizationService(storage=storage_backend, kek_key=old_key)
+    service_old = PIITokenizationService(storage=storage_backend, kek_keys=old_key)
     pii_data = {"email": "test@example.com"}
     token = await service_old.tokenize_pii(pii_data)
     
@@ -250,7 +250,7 @@ async def test_rotate_kek(storage_backend):
     new_key = Fernet.generate_key()
     
     # Create token with old key
-    service_old = PIITokenizationService(storage=storage_backend, kek_key=old_key)
+    service_old = PIITokenizationService(storage=storage_backend, kek_keys=old_key)
     pii_data = {"email": "test@example.com"}
     token = await service_old.tokenize_pii(pii_data)
     
@@ -284,7 +284,7 @@ async def test_rotate_kek(storage_backend):
 async def test_rotate_kek_nonexistent(storage_backend):
     """Test rotate_kek returns False for nonexistent token."""
     key = Fernet.generate_key()
-    service = PIITokenizationService(storage=storage_backend, kek_key=key)
+    service = PIITokenizationService(storage=storage_backend, kek_keys=key)
     
     success = await service.rotate_kek("nonexistent")
     assert success is False
@@ -316,7 +316,7 @@ async def test_rotate_all_peks(storage_backend):
     new_key = Fernet.generate_key()
     
     # Create multiple tokens with old key
-    service_old = PIITokenizationService(storage=storage_backend, kek_key=old_key)
+    service_old = PIITokenizationService(storage=storage_backend, kek_keys=old_key)
     pii1 = {"email": "alice@example.com"}
     pii2 = {"email": "bob@example.com"}
     token1 = await service_old.tokenize_pii(pii1)
@@ -348,7 +348,7 @@ async def test_rotate_all_peks(storage_backend):
 async def test_rotate_all_peks_empty(storage_backend):
     """Test rotate_all_peks returns 0 on empty storage."""
     key = Fernet.generate_key()
-    service = PIITokenizationService(storage=storage_backend, kek_key=key)
+    service = PIITokenizationService(storage=storage_backend, kek_keys=key)
     
     count = await service.rotate_all_peks()
     assert count == 0

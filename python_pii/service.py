@@ -28,36 +28,37 @@ class PIITokenizationService:
     def __init__(
         self,
         storage: PIIStorageBackend,
-        kek_key: Optional[bytes] = None,
-        kek_keys: Optional[List[bytes]] = None,
+        kek_keys: Optional[bytes | List[bytes]] = None,
     ):
         """
         Initialize the PII tokenization service.
         
         Args:
             storage: The storage backend implementing PIIStorageBackend protocol.
-            kek_key: A single KEK for wrapping/unwrapping PEKs.
-            kek_keys: Multiple KEKs for key rotation (newest first).
+            kek_keys: KEK(s) for wrapping/unwrapping PEKs. Accepts:
+                - bytes: A single key
+                - List[bytes]: Multiple keys for rotation (newest first)
                 The first key is used for encryption; all keys are tried for decryption.
         
         Key resolution priority:
-            kek_keys param > kek_key param > FERNET_KEYS env > FERNET_KEY env
+            kek_keys param > FERNET_KEYS env > FERNET_KEY env
         
         Raises:
-            PIIKeyError: If no key is available.
+            PIIKeyError: If no key is available or keys are invalid.
         """
         self.storage = storage
         
         if kek_keys is not None:
-            keys = kek_keys
-        elif kek_key is not None:
-            keys = [kek_key]
+            if isinstance(kek_keys, bytes):
+                keys = [kek_keys]
+            else:
+                keys = kek_keys
         else:
             keys = self._load_keys_from_env()
         
         if not keys:
             raise PIIKeyError(
-                "No encryption key provided. Pass kek_key/kek_keys to the constructor "
+                "No encryption key provided. Pass kek_keys to the constructor "
                 "or set the FERNET_KEY/FERNET_KEYS environment variable."
             )
         

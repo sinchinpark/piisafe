@@ -25,4 +25,4 @@ def fernet_key():
 @pytest.fixture
 def pii_service(storage_backend, fernet_key):
     """Provide a PIITokenizationService instance."""
-    return PIITokenizationService(storage=storage_backend, kek_key=fernet_key)
+    return PIITokenizationService(storage=storage_backend, kek_keys=fernet_key)

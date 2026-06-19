@@ -45,7 +45,7 @@ uv add python-pii[fastapi]
 from python_pii import PIITokenizationService, InMemoryBackend
 
 storage = InMemoryBackend()
-service = PIITokenizationService(storage=storage, kek_key=Fernet.generate_key())
+service = PIITokenizationService(storage=storage, kek_keys=Fernet.generate_key())
 
 token = await service.tokenize_pii({"email": "alice@example.com"})
 data = await service.retrieve_pii(token)
@@ -178,7 +178,7 @@ Delete PII data for a token.
 
 ### Encryption Key (KEK)
 
-The `FERNET_KEY` environment variable or `kek_key` parameter provides the Key Encryption Key (KEK).
+The `FERNET_KEY` environment variable or `kek_keys` parameter provides the Key Encryption Key (KEK).
 
 ```bash
 # Generate a key
@@ -194,7 +194,7 @@ Or pass it directly:
 from cryptography.fernet import Fernet
 
 key = Fernet.generate_key()
-pii_service = PIITokenizationService(storage=storage, kek_key=key)
+pii_service = PIITokenizationService(storage=storage, kek_keys=key)
 ```
 
 ## Custom Storage Backend
@@ -420,7 +420,7 @@ Contributions are welcome! Please ensure:
 
 This package uses a **PEK/KEK key hierarchy**:
 
-- **KEK (Key Encryption Key)**: Master key that wraps/unwraps PEKs. Set via `FERNET_KEY` env var or `kek_key` parameter.
+- **KEK (Key Encryption Key)**: Master key that wraps/unwraps PEKs. Set via `FERNET_KEY` env var or `kek_keys` parameter.
 - **PEK (Presentation Encryption Key)**: Per-record key that encrypts/decrypts PII data. Generated automatically for each token.
 
 This design limits blast radius — a compromised PEK exposes only one record.

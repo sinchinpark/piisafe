@@ -17,7 +17,7 @@ def service(backend):
     key = b"test-kek-key-for-backend-tests-32b!"
     # Pad to valid Fernet key length
     from cryptography.fernet import Fernet
-    return PIITokenizationService(storage=backend, kek_key=Fernet.generate_key())
+    return PIITokenizationService(storage=backend, kek_keys=Fernet.generate_key())
 
 
 class TestInMemoryBackend:
