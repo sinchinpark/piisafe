@@ -112,6 +112,28 @@ def test_key_missing_raises_error(storage_backend, monkeypatch):
         PIITokenizationService(storage=storage_backend)
 
 
+def test_invalid_kek_raises_key_error(storage_backend, monkeypatch):
+    """Test that PIIKeyError is raised when an invalid KEK is provided."""
+    monkeypatch.delenv("FERNET_KEY", raising=False)
+    monkeypatch.delenv("FERNET_KEYS", raising=False)
+
+    with pytest.raises(PIIKeyError, match="Invalid KEK"):
+        PIITokenizationService(storage=storage_backend, kek_key=b"not-a-valid-fernet-key")
+
+
+def test_invalid_kek_in_list_raises_key_error(storage_backend, monkeypatch):
+    """Test that PIIKeyError is raised when any KEK in the list is invalid."""
+    monkeypatch.delenv("FERNET_KEY", raising=False)
+    monkeypatch.delenv("FERNET_KEYS", raising=False)
+
+    valid_key = Fernet.generate_key()
+    with pytest.raises(PIIKeyError, match="Invalid KEK"):
+        PIITokenizationService(
+            storage=storage_backend,
+            kek_keys=[valid_key, b"not-a-valid-fernet-key"],
+        )
+
+
 def test_generate_token():
     """Test token generation."""
     token1 = PIITokenizationService.generate_token()

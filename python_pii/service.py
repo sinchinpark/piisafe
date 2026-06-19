@@ -61,7 +61,10 @@ class PIITokenizationService:
                 "or set the FERNET_KEY/FERNET_KEYS environment variable."
             )
         
-        self._multi_kek = MultiFernet([Fernet(k) for k in keys])
+        try:
+            self._multi_kek = MultiFernet([Fernet(k) for k in keys])
+        except (ValueError, Exception) as e:
+            raise PIIKeyError(f"Invalid KEK: {e}") from e
     
     @staticmethod
     def _load_keys_from_env() -> List[bytes]:
