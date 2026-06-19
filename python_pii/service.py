@@ -1,6 +1,7 @@
 """
 PII tokenization service with encryption/decryption capabilities.
 """
+import logging
 import os
 import secrets
 from typing import Dict, Optional
@@ -9,6 +10,8 @@ from cryptography.fernet import Fernet, InvalidToken
 
 from python_pii.exceptions import PIIDecryptionError, PIIEncryptionError, PIIKeyError
 from python_pii.protocols import PIIStorageBackend
+
+logger = logging.getLogger(__name__)
 
 
 class PIITokenizationService:
@@ -62,7 +65,8 @@ class PIITokenizationService:
         try:
             return pek.encrypt(data.encode()).decode()
         except Exception as e:
-            raise PIIEncryptionError(f"Failed to encrypt PII data: {str(e)}")
+            logger.error("Encryption failed: %s", e, exc_info=True)
+            raise PIIEncryptionError("Encryption operation failed")
     
     @staticmethod
     def _decrypt_with_pek(data: str, pek: Fernet) -> str:
@@ -72,14 +76,16 @@ class PIITokenizationService:
         except InvalidToken:
             raise PIIDecryptionError("Invalid or tampered encrypted data")
         except Exception as e:
-            raise PIIDecryptionError(f"Failed to decrypt PII data: {str(e)}")
+            logger.error("Decryption failed: %s", e, exc_info=True)
+            raise PIIDecryptionError("Decryption operation failed")
     
     def _wrap_pek(self, pek_key: bytes) -> str:
         """Wrap a PEK with the KEK."""
         try:
             return self.kek.encrypt(pek_key).decode()
         except Exception as e:
-            raise PIIEncryptionError(f"Failed to wrap encryption key: {str(e)}")
+            logger.error("PEK wrap failed: %s", e, exc_info=True)
+            raise PIIEncryptionError("Key wrapping operation failed")
     
     def _unwrap_pek(self, encrypted_pek: str) -> bytes:
         """Unwrap a PEK using the KEK."""
@@ -88,7 +94,8 @@ class PIITokenizationService:
         except InvalidToken:
             raise PIIDecryptionError("Invalid or tampered encryption key")
         except Exception as e:
-            raise PIIDecryptionError(f"Failed to unwrap encryption key: {str(e)}")
+            logger.error("PEK unwrap failed: %s", e, exc_info=True)
+            raise PIIDecryptionError("Key unwrapping operation failed")
     
     async def tokenize_pii(self, pii_data: Dict[str, str]) -> str:
         """
