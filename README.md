@@ -1,5 +1,7 @@
 # piisafe
 
+**⚠️ This package is not ready for production yet and is under heavy development.**
+
 A framework-agnostic PII (Personally Identifiable Information) tokenization service for Python web applications. Supports FastAPI, Flask, and Sanic through adapter classes.
 
 ## Features
