@@ -4,9 +4,9 @@ PII tokenization service with encryption/decryption capabilities.
 import logging
 import os
 import secrets
-from typing import Dict, Optional
+from typing import List, Optional
 
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet, InvalidToken, MultiFernet
 
 from python_pii.exceptions import PIIDecryptionError, PIIEncryptionError, PIIKeyError
 from python_pii.protocols import PIIStorageBackend
@@ -19,35 +19,62 @@ class PIITokenizationService:
     Service for tokenizing PII (Personally Identifiable Information) data.
     
     Uses a PEK/KEK key hierarchy:
-    - KEK (Key Encryption Key): Master key that wraps/unwraps PEKs. Never touches PII directly.
+    - KEK (Key Encryption Key): Master key(s) that wrap/unwrap PEKs. Never touches PII directly.
     - PEK (Presentation Encryption Key): Per-record key that encrypts/decrypts PII data.
     
-    This design limits blast radius — a compromised PEK exposes only one record.
+    Supports key rotation via MultiFernet — pass multiple KEKs with the newest first.
     """
     
-    def __init__(self, storage: PIIStorageBackend, kek_key: Optional[bytes] = None):
+    def __init__(
+        self,
+        storage: PIIStorageBackend,
+        kek_key: Optional[bytes] = None,
+        kek_keys: Optional[List[bytes]] = None,
+    ):
         """
         Initialize the PII tokenization service.
         
         Args:
             storage: The storage backend implementing PIIStorageBackend protocol.
-            kek_key: The KEK (Key Encryption Key) for wrapping/unwrapping PEKs.
-                If None, reads from the FERNET_KEY environment variable.
-                Raises PIIKeyError if no key is available.
+            kek_key: A single KEK for wrapping/unwrapping PEKs.
+            kek_keys: Multiple KEKs for key rotation (newest first).
+                The first key is used for encryption; all keys are tried for decryption.
+        
+        Key resolution priority:
+            kek_keys param > kek_key param > FERNET_KEYS env > FERNET_KEY env
+        
+        Raises:
+            PIIKeyError: If no key is available.
         """
         self.storage = storage
         
-        if kek_key is None:
-            kek_key_str = os.environ.get("FERNET_KEY")
-            if kek_key_str:
-                kek_key = kek_key_str.encode()
-            else:
-                raise PIIKeyError(
-                    "No encryption key provided. Pass kek_key to the constructor "
-                    "or set the FERNET_KEY environment variable."
-                )
+        if kek_keys is not None:
+            keys = kek_keys
+        elif kek_key is not None:
+            keys = [kek_key]
+        else:
+            keys = self._load_keys_from_env()
         
-        self.kek = Fernet(kek_key)
+        if not keys:
+            raise PIIKeyError(
+                "No encryption key provided. Pass kek_key/kek_keys to the constructor "
+                "or set the FERNET_KEY/FERNET_KEYS environment variable."
+            )
+        
+        self.multi_kek = MultiFernet([Fernet(k) for k in keys])
+    
+    @staticmethod
+    def _load_keys_from_env() -> List[bytes]:
+        """Load KEK(s) from environment variables."""
+        keys_str = os.environ.get("FERNET_KEYS")
+        if keys_str:
+            return [k.strip().encode() for k in keys_str.split(",") if k.strip()]
+        
+        single_key = os.environ.get("FERNET_KEY")
+        if single_key:
+            return [single_key.encode()]
+        
+        return []
     
     @staticmethod
     def generate_token() -> str:
@@ -80,17 +107,17 @@ class PIITokenizationService:
             raise PIIDecryptionError("Decryption operation failed")
     
     def _wrap_pek(self, pek_key: bytes) -> str:
-        """Wrap a PEK with the KEK."""
+        """Wrap a PEK with the primary KEK."""
         try:
-            return self.kek.encrypt(pek_key).decode()
+            return self.multi_kek.encrypt(pek_key).decode()
         except Exception as e:
             logger.error("PEK wrap failed: %s", e, exc_info=True)
             raise PIIEncryptionError("Key wrapping operation failed")
     
     def _unwrap_pek(self, encrypted_pek: str) -> bytes:
-        """Unwrap a PEK using the KEK."""
+        """Unwrap a PEK using any valid KEK."""
         try:
-            return self.kek.decrypt(encrypted_pek.encode())
+            return self.multi_kek.decrypt(encrypted_pek.encode())
         except InvalidToken:
             raise PIIDecryptionError("Invalid or tampered encryption key")
         except Exception as e:
@@ -101,7 +128,7 @@ class PIITokenizationService:
         """
         Tokenize PII data by encrypting it and storing it in the backend.
         
-        Each token gets its own PEK, wrapped by the KEK for storage.
+        Each token gets its own PEK, wrapped by the primary KEK for storage.
         
         Args:
             pii_data: A dictionary containing the PII data.
@@ -172,6 +199,25 @@ class PIITokenizationService:
         encrypted_pek = self._wrap_pek(pek_key)
         
         return await self.storage.update_pii(token, encrypted_pek, encrypted_data)
+    
+    async def rotate_kek(self, token: str) -> bool:
+        """Re-wrap a token's PEK under the current primary KEK.
+        
+        Call this after adding a new primary KEK to migrate old records.
+        
+        Args:
+            token: The token whose PEK should be re-wrapped.
+        
+        Returns:
+            True if rotated, False if token not found.
+        """
+        result = await self.storage.get_pii(token)
+        if result is None:
+            return False
+        
+        encrypted_pek, encrypted_data = result
+        rotated_pek = self.multi_kek.rotate(encrypted_pek.encode()).decode()
+        return await self.storage.update_pii(token, rotated_pek, encrypted_data)
     
     async def delete_pii(self, token: str) -> bool:
         """

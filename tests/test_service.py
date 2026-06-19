@@ -166,3 +166,122 @@ async def test_kek_can_re_wrap_pek(storage_backend, fernet_key):
     service2 = PIITokenizationService(storage=storage_backend, kek_key=new_kek_key)
     retrieved = await service2.retrieve_pii(token)
     assert retrieved == pii_data
+
+
+# --- MultiFernet / Key Rotation Tests ---
+
+
+@pytest.mark.anyio
+async def test_multi_key_decrypt(storage_backend):
+    """Test that PEKs wrapped with old key can be decrypted with multi-key service."""
+    old_key = Fernet.generate_key()
+    new_key = Fernet.generate_key()
+    
+    # Create service with old key, encrypt real data
+    service_old = PIITokenizationService(storage=storage_backend, kek_key=old_key)
+    pii_data = {"email": "test@example.com"}
+    token = await service_old.tokenize_pii(pii_data)
+    
+    # Verify old key works
+    assert await service_old.retrieve_pii(token) == pii_data
+    
+    # Service with [new, old] — should still decrypt old PEK
+    service_multi = PIITokenizationService(
+        storage=storage_backend,
+        kek_keys=[new_key, old_key],
+    )
+    result = await service_multi.retrieve_pii(token)
+    assert result == pii_data
+
+
+@pytest.mark.anyio
+async def test_multi_key_encrypt_uses_primary(storage_backend):
+    """Test that new PEKs are wrapped with the primary (first) key."""
+    key1 = Fernet.generate_key()
+    key2 = Fernet.generate_key()
+    
+    service = PIITokenizationService(
+        storage=storage_backend,
+        kek_keys=[key1, key2],
+    )
+    
+    pii_data = {"email": "test@example.com"}
+    token = await service.tokenize_pii(pii_data)
+    
+    encrypted_pek, _ = await storage_backend.get_pii(token)
+    
+    # Verify PEK was encrypted with key1 (primary), not key2
+    kek1 = Fernet(key1)
+    # Should not raise — key1 can decrypt
+    kek1.decrypt(encrypted_pek.encode())
+    
+    kek2 = Fernet(key2)
+    # key2 should NOT be able to decrypt (it was encrypted with key1)
+    with pytest.raises(InvalidToken):
+        kek2.decrypt(encrypted_pek.encode())
+
+
+@pytest.mark.anyio
+async def test_rotate_kek(storage_backend):
+    """Test rotating PEKs from old key to new key."""
+    old_key = Fernet.generate_key()
+    new_key = Fernet.generate_key()
+    
+    # Create token with old key
+    service_old = PIITokenizationService(storage=storage_backend, kek_key=old_key)
+    pii_data = {"email": "test@example.com"}
+    token = await service_old.tokenize_pii(pii_data)
+    
+    # Verify we can read it
+    assert await service_old.retrieve_pii(token) == pii_data
+    
+    # Create service with new key as primary, old as fallback
+    service_new = PIITokenizationService(
+        storage=storage_backend,
+        kek_keys=[new_key, old_key],
+    )
+    
+    # Rotate the PEK to new key
+    success = await service_new.rotate_kek(token)
+    assert success is True
+    
+    # Verify data is still accessible
+    assert await service_new.retrieve_pii(token) == pii_data
+    
+    # Verify the PEK is now wrapped with new_key
+    encrypted_pek, _ = await storage_backend.get_pii(token)
+    kek_new = Fernet(new_key)
+    kek_new.decrypt(encrypted_pek.encode())  # Should succeed
+    
+    kek_old = Fernet(old_key)
+    with pytest.raises(InvalidToken):
+        kek_old.decrypt(encrypted_pek.encode())  # Should fail
+
+
+@pytest.mark.anyio
+async def test_rotate_kek_nonexistent(storage_backend):
+    """Test rotate_kek returns False for nonexistent token."""
+    key = Fernet.generate_key()
+    service = PIITokenizationService(storage=storage_backend, kek_key=key)
+    
+    success = await service.rotate_kek("nonexistent")
+    assert success is False
+
+
+@pytest.mark.anyio
+async def test_fernet_keys_env_var(storage_backend, monkeypatch):
+    """Test loading multiple keys from FERNET_KEYS env var."""
+    key1 = Fernet.generate_key().decode()
+    key2 = Fernet.generate_key().decode()
+    monkeypatch.setenv("FERNET_KEYS", f"{key1},{key2}")
+    monkeypatch.delenv("FERNET_KEY", raising=False)
+    
+    service = PIITokenizationService(storage=storage_backend)
+    
+    pii_data = {"field": "test"}
+    token = await service.tokenize_pii(pii_data)
+    retrieved = await service.retrieve_pii(token)
+    assert retrieved == pii_data
+
+
+from cryptography.fernet import InvalidToken
