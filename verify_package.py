@@ -15,16 +15,16 @@ def verify_package():
     required_files = [
         "pyproject.toml",
         "README.md",
-        "python_pii/__init__.py",
-        "python_pii/protocols.py",
-        "python_pii/exceptions.py",
-        "python_pii/service.py",
-        "python_pii/models.py",
-        "python_pii/adapters/__init__.py",
-        "python_pii/adapters/base.py",
-        "python_pii/adapters/fastapi.py",
-        "python_pii/adapters/flask.py",
-        "python_pii/adapters/sanic.py",
+        "piisafe/__init__.py",
+        "piisafe/protocols.py",
+        "piisafe/exceptions.py",
+        "piisafe/service.py",
+        "piisafe/models.py",
+        "piisafe/adapters/__init__.py",
+        "piisafe/adapters/base.py",
+        "piisafe/adapters/fastapi.py",
+        "piisafe/adapters/flask.py",
+        "piisafe/adapters/sanic.py",
         "tests/conftest.py",
         "tests/test_service.py",
         "tests/test_models.py",
@@ -41,7 +41,7 @@ def verify_package():
     # Try importing the package
     try:
         sys.path.insert(0, str(package_root))
-        from python_pii import (
+        from piisafe import (
             PIITokenizationService,
             PIIStorageBackend,
             PIIData,
@@ -58,19 +58,19 @@ def verify_package():
     
     # Try importing adapters (may fail if frameworks not installed)
     try:
-        from python_pii.adapters.fastapi import FastAPIAdapter
+        from piisafe.adapters.fastapi import FastAPIAdapter
         print("✓ FastAPI adapter available")
     except ImportError:
         print("⚠ FastAPI adapter not available (install with [fastapi] extra)")
     
     try:
-        from python_pii.adapters.flask import FlaskAdapter
+        from piisafe.adapters.flask import FlaskAdapter
         print("✓ Flask adapter available")
     except ImportError:
         print("⚠ Flask adapter not available (install with [flask] extra)")
     
     try:
-        from python_pii.adapters.sanic import SanicAdapter
+        from piisafe.adapters.sanic import SanicAdapter
         print("✓ Sanic adapter available")
     except ImportError:
         print("⚠ Sanic adapter not available (install with [sanic] extra)")
