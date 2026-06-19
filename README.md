@@ -41,54 +41,32 @@ uv add python-pii[fastapi]
 
 ## Quick Start
 
-### 1. Implement a Storage Backend
-
 ```python
-from typing import Dict, Optional, Tuple
-from python_pii import PIIStorageBackend
+from python_pii import PIITokenizationService, InMemoryBackend
 
-class InMemoryPIIBackend:
-    """Simple in-memory storage (for demo purposes only)."""
-    
-    def __init__(self):
-        self._storage: Dict[str, Tuple[str, Dict[str, str]]] = {}
-    
-    async def store_pii(self, token: str, encrypted_pek: str, encrypted_data: Dict[str, str]) -> None:
-        self._storage[token] = (encrypted_pek, encrypted_data)
-    
-    async def get_pii(self, token: str) -> Optional[Tuple[str, Dict[str, str]]]:
-        return self._storage.get(token)
-    
-    async def update_pii(self, token: str, encrypted_pek: str, encrypted_data: Dict[str, str]) -> bool:
-        if token in self._storage:
-            self._storage[token] = (encrypted_pek, encrypted_data)
-            return True
-        return False
-    
-    async def delete_pii(self, token: str) -> bool:
-        if token in self._storage:
-            del self._storage[token]
-            return True
-        return False
+storage = InMemoryBackend()
+service = PIITokenizationService(storage=storage, kek_key=Fernet.generate_key())
+
+token = await service.tokenize_pii({"email": "alice@example.com"})
+data = await service.retrieve_pii(token)
+# data == {"email": "alice@example.com"}
 ```
 
-### 2. FastAPI Example
+### Framework Examples
+
+<details>
+<summary>FastAPI</summary>
 
 ```python
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from python_pii import PIITokenizationService, PIIError
+from python_pii import PIITokenizationService, InMemoryBackend, PIIError
 from python_pii.adapters.fastapi import FastAPIAdapter
 
 app = FastAPI()
+storage = InMemoryBackend()
+service = PIITokenizationService(storage=storage)
 
-# Initialize storage backend
-storage = InMemoryPIIBackend()
-
-# Create PII service (requires FERNET_KEY env var)
-pii_service = PIITokenizationService(storage=storage)
-
-# Add exception handler at app level
 @app.exception_handler(PIIError)
 async def pii_error_handler(request: Request, exc: PIIError):
     return JSONResponse(
@@ -96,59 +74,44 @@ async def pii_error_handler(request: Request, exc: PIIError):
         content={"error": exc.code, "message": exc.message}
     )
 
-# Create adapter and get router
-adapter = FastAPIAdapter(service=pii_service, prefix="/pii", tags=["PII"])
-router = adapter.get_router()
-
-# Register router
-app.include_router(router)
+adapter = FastAPIAdapter(service=service, prefix="/pii", tags=["PII"])
+app.include_router(adapter.get_router())
 ```
+</details>
 
-### 3. Flask Example
+<details>
+<summary>Flask</summary>
 
 ```python
 from flask import Flask
-from python_pii import PIITokenizationService
+from python_pii import PIITokenizationService, InMemoryBackend
 from python_pii.adapters.flask import FlaskAdapter
 
 app = Flask(__name__)
+storage = InMemoryBackend()
+service = PIITokenizationService(storage=storage)
 
-# Initialize storage backend
-storage = InMemoryPIIBackend()
-
-# Create PII service
-pii_service = PIITokenizationService(storage=storage)
-
-# Create adapter and get blueprint
-adapter = FlaskAdapter(service=pii_service, prefix="/pii")
-blueprint = adapter.get_router()
-
-# Register blueprint
-app.register_blueprint(blueprint)
+adapter = FlaskAdapter(service=service, prefix="/pii")
+app.register_blueprint(adapter.get_router())
 ```
+</details>
 
-### 4. Sanic Example
+<details>
+<summary>Sanic</summary>
 
 ```python
 from sanic import Sanic
-from python_pii import PIITokenizationService
+from python_pii import PIITokenizationService, InMemoryBackend
 from python_pii.adapters.sanic import SanicAdapter
 
 app = Sanic("MyApp")
+storage = InMemoryBackend()
+service = PIITokenizationService(storage=storage)
 
-# Initialize storage backend
-storage = InMemoryPIIBackend()
-
-# Create PII service
-pii_service = PIITokenizationService(storage=storage)
-
-# Create adapter and get blueprint
-adapter = SanicAdapter(service=pii_service, prefix="/pii")
-blueprint = adapter.get_router()
-
-# Register blueprint
-app.blueprint(blueprint)
+adapter = SanicAdapter(service=service, prefix="/pii")
+app.blueprint(adapter.get_router())
 ```
+</details>
 
 ## API Endpoints
 
@@ -234,9 +197,9 @@ key = Fernet.generate_key()
 pii_service = PIITokenizationService(storage=storage, kek_key=key)
 ```
 
-## Storage Backend Protocol
+## Custom Storage Backend
 
-Any class implementing these async methods can be used:
+`InMemoryBackend` is included for testing and development. For production, implement the `PIIStorageBackend` protocol with your database:
 
 ```python
 from typing import Dict, Optional, Tuple
@@ -377,6 +340,9 @@ python-pii/
 │   ├── exceptions.py        # Exception hierarchy
 │   ├── service.py           # PIITokenizationService
 │   ├── models.py            # Dataclass models
+│   ├── backends/            # Built-in storage backends
+│   │   ├── __init__.py
+│   │   └── inmemory.py      # InMemoryBackend
 │   └── adapters/
 │       ├── base.py          # BaseAdapter ABC
 │       ├── fastapi.py       # FastAPIAdapter
@@ -385,6 +351,7 @@ python-pii/
 └── tests/
     ├── test_service.py      # Core service tests
     ├── test_models.py       # Model validation tests
+    ├── test_backends.py     # Backend tests
     └── adapters/
         ├── test_fastapi_adapter.py
         ├── test_flask_adapter.py
