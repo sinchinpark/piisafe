@@ -1,13 +1,11 @@
 """
 Tests for PIITokenizationService.
 """
-import os
 
 import pytest
 from cryptography.fernet import Fernet
 
-from python_pii import PIIDecryptionError, PIIEncryptionError, PIIKeyError, PIITokenizationService
-from tests.conftest import InMemoryPIIBackend
+from python_pii import PIIDecryptionError, PIIKeyError, PIITokenizationService
 
 
 @pytest.mark.asyncio
