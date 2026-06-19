@@ -757,6 +757,7 @@ all = [
     { name = "sanic" },
 ]
 dev = [
+    { name = "anyio" },
     { name = "fastapi" },
     { name = "flask" },
     { name = "httpx" },
@@ -779,6 +780,7 @@ sanic = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anyio", marker = "extra == 'dev'", specifier = ">=4.14.0" },
     { name = "cryptography", specifier = ">=42" },
     { name = "fastapi", marker = "extra == 'all'", specifier = ">=0.115" },
     { name = "fastapi", marker = "extra == 'dev'", specifier = ">=0.115" },
