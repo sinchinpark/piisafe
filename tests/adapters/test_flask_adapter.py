@@ -4,7 +4,7 @@ Tests for Flask adapter.
 import pytest
 from flask import Flask
 
-from python_pii.adapters.flask import FlaskAdapter
+from piisafe.adapters.flask import FlaskAdapter
 
 
 @pytest.fixture

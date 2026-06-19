@@ -12,8 +12,8 @@ class InMemoryBackend:
     Data is not persisted — it is lost when the process exits.
     
     Example:
-        from python_pii import PIITokenizationService
-        from python_pii.backends import InMemoryBackend
+        from piisafe import PIITokenizationService
+        from piisafe.backends import InMemoryBackend
         
         storage = InMemoryBackend()
         service = PIITokenizationService(storage=storage, kek_key=key)

@@ -8,8 +8,8 @@ from typing import List, Optional, Dict
 
 from cryptography.fernet import Fernet, InvalidToken, MultiFernet
 
-from python_pii.exceptions import PIIDecryptionError, PIIEncryptionError, PIIKeyError
-from python_pii.protocols import PIIStorageBackend
+from piisafe.exceptions import PIIDecryptionError, PIIEncryptionError, PIIKeyError
+from piisafe.protocols import PIIStorageBackend
 
 logger = logging.getLogger(__name__)
 

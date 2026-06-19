@@ -1,4 +1,4 @@
-# python-pii
+# piisafe
 
 A framework-agnostic PII (Personally Identifiable Information) tokenization service for Python web applications. Supports FastAPI, Flask, and Sanic through adapter classes.
 
@@ -16,33 +16,33 @@ A framework-agnostic PII (Personally Identifiable Information) tokenization serv
 
 ### Core package only
 ```bash
-pip install python-pii
+pip install piisafe
 ```
 
 ### With framework support
 ```bash
 # FastAPI
-pip install python-pii[fastapi]
+pip install piisafe[fastapi]
 
 # Flask
-pip install python-pii[flask]
+pip install piisafe[flask]
 
 # Sanic
-pip install python-pii[sanic]
+pip install piisafe[sanic]
 
 # All frameworks
-pip install python-pii[all]
+pip install piisafe[all]
 ```
 
 ### With uv
 ```bash
-uv add python-pii[fastapi]
+uv add piisafe[fastapi]
 ```
 
 ## Quick Start
 
 ```python
-from python_pii import PIITokenizationService, InMemoryBackend
+from piisafe import PIITokenizationService, InMemoryBackend
 
 storage = InMemoryBackend()
 service = PIITokenizationService(storage=storage, kek_keys=Fernet.generate_key())
@@ -60,8 +60,8 @@ data = await service.retrieve_pii(token)
 ```python
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from python_pii import PIITokenizationService, InMemoryBackend, PIIError
-from python_pii.adapters.fastapi import FastAPIAdapter
+from piisafe import PIITokenizationService, InMemoryBackend, PIIError
+from piisafe.adapters.fastapi import FastAPIAdapter
 
 app = FastAPI()
 storage = InMemoryBackend()
@@ -84,8 +84,8 @@ app.include_router(adapter.get_router())
 
 ```python
 from flask import Flask
-from python_pii import PIITokenizationService, InMemoryBackend
-from python_pii.adapters.flask import FlaskAdapter
+from piisafe import PIITokenizationService, InMemoryBackend
+from piisafe.adapters.flask import FlaskAdapter
 
 app = Flask(__name__)
 storage = InMemoryBackend()
@@ -101,8 +101,8 @@ app.register_blueprint(adapter.get_router())
 
 ```python
 from sanic import Sanic
-from python_pii import PIITokenizationService, InMemoryBackend
-from python_pii.adapters.sanic import SanicAdapter
+from piisafe import PIITokenizationService, InMemoryBackend
+from piisafe.adapters.sanic import SanicAdapter
 
 app = Sanic("MyApp")
 storage = InMemoryBackend()
@@ -203,7 +203,7 @@ pii_service = PIITokenizationService(storage=storage, kek_keys=key)
 
 ```python
 from typing import Dict, Optional, Tuple
-from python_pii import PIIStorageBackend
+from piisafe import PIIStorageBackend
 
 class PIIStorageBackend(Protocol):
     async def store_pii(self, token: str, encrypted_pek: str, encrypted_data: Dict[str, str]) -> None: ...
@@ -290,7 +290,7 @@ The package provides these exceptions:
 ```python
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from python_pii import PIIError
+from piisafe import PIIError
 
 @app.exception_handler(PIIError)
 async def pii_error_handler(request: Request, exc: PIIError):
@@ -313,7 +313,7 @@ Exception handling is built into the Sanic adapter via `@bp.exception(PIIError)`
 The package uses standard library dataclasses:
 
 ```python
-from python_pii import PIIData, TokenResponse
+from piisafe import PIIData, TokenResponse
 
 # PIIData - validates that data is Dict[str, str]
 pii_data = PIIData(data={"email": "test@example.com"})
@@ -327,7 +327,7 @@ response = TokenResponse(token="abc123")
 Run tests:
 
 ```bash
-cd packages/python-pii
+cd packages/piisafe
 uv run pytest
 ```
 
@@ -340,8 +340,8 @@ uv run pytest tests/adapters/test_fastapi_adapter.py -v
 ## Architecture
 
 ```
-python-pii/
-├── python_pii/
+piisafe/
+├── piisafe/
 │   ├── __init__.py          # Core exports
 │   ├── protocols.py         # PIIStorageBackend Protocol
 │   ├── exceptions.py        # Exception hierarchy
@@ -377,7 +377,7 @@ router = create_pii_router(service=pii_service)
 
 **After:**
 ```python
-from python_pii.adapters.fastapi import FastAPIAdapter
+from piisafe.adapters.fastapi import FastAPIAdapter
 adapter = FastAPIAdapter(service=pii_service)
 router = adapter.get_router()
 

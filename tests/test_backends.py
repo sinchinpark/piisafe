@@ -3,8 +3,8 @@ Tests for built-in storage backends.
 """
 import pytest
 
-from python_pii import PIITokenizationService
-from python_pii.backends import InMemoryBackend
+from piisafe import PIITokenizationService
+from piisafe.backends import InMemoryBackend
 
 
 @pytest.fixture

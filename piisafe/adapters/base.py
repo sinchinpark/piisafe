@@ -4,7 +4,7 @@ Base adapter class for framework adapters.
 from abc import ABC, abstractmethod
 from typing import Any
 
-from python_pii.service import PIITokenizationService
+from piisafe.service import PIITokenizationService
 
 
 class BaseAdapter(ABC):

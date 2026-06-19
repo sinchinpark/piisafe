@@ -8,7 +8,7 @@ Lazy imports to avoid requiring all frameworks.
 def get_fastapi_adapter():
     """Get FastAPI adapter (requires fastapi extra)."""
     try:
-        from python_pii.adapters.fastapi import FastAPIAdapter
+        from piisafe.adapters.fastapi import FastAPIAdapter
         return FastAPIAdapter
     except ImportError as e:
         raise ImportError(
@@ -20,7 +20,7 @@ def get_fastapi_adapter():
 def get_flask_adapter():
     """Get Flask adapter (requires flask extra)."""
     try:
-        from python_pii.adapters.flask import FlaskAdapter
+        from piisafe.adapters.flask import FlaskAdapter
         return FlaskAdapter
     except ImportError as e:
         raise ImportError(
@@ -32,7 +32,7 @@ def get_flask_adapter():
 def get_sanic_adapter():
     """Get Sanic adapter (requires sanic extra)."""
     try:
-        from python_pii.adapters.sanic import SanicAdapter
+        from piisafe.adapters.sanic import SanicAdapter
         return SanicAdapter
     except ImportError as e:
         raise ImportError(

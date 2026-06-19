@@ -7,10 +7,10 @@ from typing import Callable, Dict, Tuple
 
 from flask import Blueprint, jsonify, request
 
-from python_pii.adapters.base import BaseAdapter
-from python_pii.exceptions import PIIError, PIITokenNotFoundError
-from python_pii.models import PIIData, TokenResponse
-from python_pii.service import PIITokenizationService
+from piisafe.adapters.base import BaseAdapter
+from piisafe.exceptions import PIIError, PIITokenNotFoundError
+from piisafe.models import PIIData, TokenResponse
+from piisafe.service import PIITokenizationService
 
 
 def async_route(f: Callable) -> Callable:

@@ -4,10 +4,10 @@ Sanic adapter for PII tokenization service.
 from sanic import Blueprint, Request, json
 from sanic.exceptions import SanicException
 
-from python_pii.adapters.base import BaseAdapter
-from python_pii.exceptions import PIIError, PIITokenNotFoundError
-from python_pii.models import PIIData, TokenResponse
-from python_pii.service import PIITokenizationService
+from piisafe.adapters.base import BaseAdapter
+from piisafe.exceptions import PIIError, PIITokenNotFoundError
+from piisafe.models import PIIData, TokenResponse
+from piisafe.service import PIITokenizationService
 
 
 class PIISanicException(SanicException):

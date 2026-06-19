@@ -5,7 +5,7 @@ Tests for PIITokenizationService.
 import pytest
 from cryptography.fernet import Fernet
 
-from python_pii import PIIDecryptionError, PIIKeyError, PIITokenizationService
+from piisafe import PIIDecryptionError, PIIKeyError, PIITokenizationService
 
 
 @pytest.mark.anyio

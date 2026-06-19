@@ -6,8 +6,8 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
-from python_pii.adapters.fastapi import FastAPIAdapter
-from python_pii.exceptions import PIIError
+from piisafe.adapters.fastapi import FastAPIAdapter
+from piisafe.exceptions import PIIError
 
 
 @pytest.fixture

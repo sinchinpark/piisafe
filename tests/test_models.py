@@ -3,7 +3,7 @@ Tests for data models.
 """
 import pytest
 
-from python_pii.models import PIIData, TokenResponse
+from piisafe.models import PIIData, TokenResponse
 
 
 def test_pii_data_valid():

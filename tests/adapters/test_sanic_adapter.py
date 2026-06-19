@@ -5,7 +5,7 @@ import pytest
 from sanic import Sanic
 from sanic_testing import TestManager
 
-from python_pii.adapters.sanic import SanicAdapter
+from piisafe.adapters.sanic import SanicAdapter
 
 
 @pytest.fixture

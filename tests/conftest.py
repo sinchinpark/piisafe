@@ -4,8 +4,8 @@ Shared test fixtures for fastapi-pii tests.
 import pytest
 from cryptography.fernet import Fernet
 
-from python_pii import PIITokenizationService
-from python_pii.backends import InMemoryBackend
+from piisafe import PIITokenizationService
+from piisafe.backends import InMemoryBackend
 
 InMemoryPIIBackend = InMemoryBackend
 

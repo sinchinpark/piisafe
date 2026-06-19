@@ -6,9 +6,9 @@ from typing import Dict
 from fastapi import APIRouter, status
 from pydantic import BaseModel
 
-from python_pii.adapters.base import BaseAdapter
-from python_pii.exceptions import PIIError, PIITokenNotFoundError
-from python_pii.service import PIITokenizationService
+from piisafe.adapters.base import BaseAdapter
+from piisafe.exceptions import PIIError, PIITokenNotFoundError
+from piisafe.service import PIITokenizationService
 
 
 # Pydantic models for FastAPI validation

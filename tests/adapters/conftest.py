@@ -4,7 +4,7 @@ Shared fixtures for adapter tests.
 import pytest
 from cryptography.fernet import Fernet
 
-from python_pii import PIITokenizationService
+from piisafe import PIITokenizationService
 from tests.conftest import InMemoryPIIBackend
 
 

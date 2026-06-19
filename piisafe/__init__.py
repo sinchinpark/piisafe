@@ -1,8 +1,8 @@
 """
 python-pii: Framework-agnostic PII tokenization service.
 """
-from python_pii.backends import InMemoryBackend
-from python_pii.exceptions import (
+from piisafe.backends import InMemoryBackend
+from piisafe.exceptions import (
     PIIDecryptionError,
     PIIEncryptionError,
     PIIError,
@@ -10,9 +10,9 @@ from python_pii.exceptions import (
     PIITokenInvalidError,
     PIITokenNotFoundError,
 )
-from python_pii.models import PIIData, TokenResponse
-from python_pii.protocols import PIIStorageBackend
-from python_pii.service import PIITokenizationService
+from piisafe.models import PIIData, TokenResponse
+from piisafe.protocols import PIIStorageBackend
+from piisafe.service import PIITokenizationService
 
 __all__ = [
     "PIITokenizationService",
