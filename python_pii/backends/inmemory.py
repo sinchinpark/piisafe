@@ -1,7 +1,7 @@
 """
 In-memory storage backend for testing and development.
 """
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 
 class InMemoryBackend:
@@ -39,6 +39,9 @@ class InMemoryBackend:
             del self._storage[token]
             return True
         return False
+    
+    async def list_tokens(self) -> List[str]:
+        return list(self._storage.keys())
     
     def clear(self) -> None:
         """Remove all stored PII data."""

@@ -80,3 +80,16 @@ class TestInMemoryBackend:
         assert backend.count() == 1
         retrieved = await service.retrieve_pii(token)
         assert retrieved == pii
+
+    @pytest.mark.anyio
+    async def test_list_tokens(self, backend):
+        await backend.store_pii("a", "pek", {})
+        await backend.store_pii("b", "pek", {})
+        await backend.store_pii("c", "pek", {})
+        tokens = await backend.list_tokens()
+        assert sorted(tokens) == ["a", "b", "c"]
+
+    @pytest.mark.anyio
+    async def test_list_tokens_empty(self, backend):
+        tokens = await backend.list_tokens()
+        assert tokens == []

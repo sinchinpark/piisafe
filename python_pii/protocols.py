@@ -1,7 +1,7 @@
 """
 Storage protocol for PII tokenization backends.
 """
-from typing import Dict, Optional, Protocol, Tuple, runtime_checkable
+from typing import Dict, List, Optional, Protocol, Tuple, runtime_checkable
 
 
 @runtime_checkable
@@ -9,7 +9,7 @@ class PIIStorageBackend(Protocol):
     """
     Protocol defining the interface for PII storage backends.
     
-    Any class implementing these four async methods can be used as a storage backend
+    Any class implementing these async methods can be used as a storage backend
     for the PIITokenizationService, regardless of the underlying storage mechanism
     (SQL, NoSQL, in-memory, etc.).
     """
@@ -61,5 +61,14 @@ class PIIStorageBackend(Protocol):
         
         Returns:
             True if the data was deleted, False otherwise.
+        """
+        ...
+    
+    async def list_tokens(self) -> List[str]:
+        """
+        Return all stored tokens.
+        
+        Returns:
+            A list of all token strings.
         """
         ...

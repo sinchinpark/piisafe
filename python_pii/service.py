@@ -61,7 +61,7 @@ class PIITokenizationService:
                 "or set the FERNET_KEY/FERNET_KEYS environment variable."
             )
         
-        self.multi_kek = MultiFernet([Fernet(k) for k in keys])
+        self._multi_kek = MultiFernet([Fernet(k) for k in keys])
     
     @staticmethod
     def _load_keys_from_env() -> List[bytes]:
@@ -109,7 +109,7 @@ class PIITokenizationService:
     def _wrap_pek(self, pek_key: bytes) -> str:
         """Wrap a PEK with the primary KEK."""
         try:
-            return self.multi_kek.encrypt(pek_key).decode()
+            return self._multi_kek.encrypt(pek_key).decode()
         except Exception as e:
             logger.error("PEK wrap failed: %s", e, exc_info=True)
             raise PIIEncryptionError("Key wrapping operation failed")
@@ -117,7 +117,7 @@ class PIITokenizationService:
     def _unwrap_pek(self, encrypted_pek: str) -> bytes:
         """Unwrap a PEK using any valid KEK."""
         try:
-            return self.multi_kek.decrypt(encrypted_pek.encode())
+            return self._multi_kek.decrypt(encrypted_pek.encode())
         except InvalidToken:
             raise PIIDecryptionError("Invalid or tampered encryption key")
         except Exception as e:
@@ -216,8 +216,23 @@ class PIITokenizationService:
             return False
         
         encrypted_pek, encrypted_data = result
-        rotated_pek = self.multi_kek.rotate(encrypted_pek.encode()).decode()
+        rotated_pek = self._multi_kek.rotate(encrypted_pek.encode()).decode()
         return await self.storage.update_pii(token, rotated_pek, encrypted_data)
+    
+    async def rotate_all_peks(self) -> int:
+        """Re-wrap all PEKs under the current primary KEK.
+        
+        Call this after adding a new primary KEK to migrate all records.
+        
+        Returns:
+            The number of records rotated.
+        """
+        tokens = await self.storage.list_tokens()
+        rotated = 0
+        for token in tokens:
+            if await self.rotate_kek(token):
+                rotated += 1
+        return rotated
     
     async def delete_pii(self, token: str) -> bool:
         """

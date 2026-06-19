@@ -285,3 +285,48 @@ async def test_fernet_keys_env_var(storage_backend, monkeypatch):
 
 
 from cryptography.fernet import InvalidToken
+
+
+@pytest.mark.anyio
+async def test_rotate_all_peks(storage_backend):
+    """Test rotating all PEKs from old key to new key."""
+    old_key = Fernet.generate_key()
+    new_key = Fernet.generate_key()
+    
+    # Create multiple tokens with old key
+    service_old = PIITokenizationService(storage=storage_backend, kek_key=old_key)
+    pii1 = {"email": "alice@example.com"}
+    pii2 = {"email": "bob@example.com"}
+    token1 = await service_old.tokenize_pii(pii1)
+    token2 = await service_old.tokenize_pii(pii2)
+    
+    # Create service with new key as primary, old as fallback
+    service_new = PIITokenizationService(
+        storage=storage_backend,
+        kek_keys=[new_key, old_key],
+    )
+    
+    # Rotate all PEKs
+    count = await service_new.rotate_all_peks()
+    assert count == 2
+    
+    # Verify data is still accessible
+    assert await service_new.retrieve_pii(token1) == pii1
+    assert await service_new.retrieve_pii(token2) == pii2
+    
+    # Verify PEKs are now wrapped with new_key
+    for token in [token1, token2]:
+        encrypted_pek, _ = await storage_backend.get_pii(token)
+        Fernet(new_key).decrypt(encrypted_pek.encode())  # Should succeed
+        with pytest.raises(InvalidToken):
+            Fernet(old_key).decrypt(encrypted_pek.encode())  # Should fail
+
+
+@pytest.mark.anyio
+async def test_rotate_all_peks_empty(storage_backend):
+    """Test rotate_all_peks returns 0 on empty storage."""
+    key = Fernet.generate_key()
+    service = PIITokenizationService(storage=storage_backend, kek_key=key)
+    
+    count = await service.rotate_all_peks()
+    assert count == 0

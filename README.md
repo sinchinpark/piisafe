@@ -265,6 +265,13 @@ class MariaDBPIIBackend:
                 )
                 await conn.commit()
                 return cursor.rowcount > 0
+    
+    async def list_tokens(self) -> list[str]:
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(f"SELECT token FROM {self.table_name}")
+                results = await cursor.fetchall()
+                return [row[0] for row in results]
 ```
 
 ## Exception Handling
