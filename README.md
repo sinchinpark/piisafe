@@ -214,41 +214,7 @@ class PIIStorageBackend(Protocol):
 
 The `encrypted_pek` is the PEK wrapped by the KEK. Store it alongside the encrypted data.
 
-## Exception Handling
-
-The package provides these exceptions:
-
-- `PIIError` - Base exception (status_code, code, message attributes)
-- `PIITokenNotFoundError` - 404: Token not found
-- `PIITokenInvalidError` - 400: Invalid token format
-- `PIIEncryptionError` - 500: Encryption failed
-- `PIIDecryptionError` - 500: Decryption failed (invalid/tampered data)
-- `PIIKeyError` - 500: Encryption key not configured
-
-### FastAPI Exception Handling
-
-```python
-from fastapi import Request
-from fastapi.responses import JSONResponse
-from python_pii import PIIError
-
-@app.exception_handler(PIIError)
-async def pii_error_handler(request: Request, exc: PIIError):
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"error": exc.code, "message": exc.message}
-    )
-```
-
-### Flask Exception Handling
-
-Exception handling is built into the Flask adapter via `@bp.errorhandler(PIIError)`.
-
-### Sanic Exception Handling
-
-Exception handling is built into the Sanic adapter via `@bp.exception(PIIError)`.
-
-## Example: MariaDB/MySQL Backend
+### MariaDB/MySQL Example
 
 ```python
 import json
@@ -300,6 +266,40 @@ class MariaDBPIIBackend:
                 await conn.commit()
                 return cursor.rowcount > 0
 ```
+
+## Exception Handling
+
+The package provides these exceptions:
+
+- `PIIError` - Base exception (status_code, code, message attributes)
+- `PIITokenNotFoundError` - 404: Token not found
+- `PIITokenInvalidError` - 400: Invalid token format
+- `PIIEncryptionError` - 500: Encryption failed
+- `PIIDecryptionError` - 500: Decryption failed (invalid/tampered data)
+- `PIIKeyError` - 500: Encryption key not configured
+
+### FastAPI Exception Handling
+
+```python
+from fastapi import Request
+from fastapi.responses import JSONResponse
+from python_pii import PIIError
+
+@app.exception_handler(PIIError)
+async def pii_error_handler(request: Request, exc: PIIError):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": exc.code, "message": exc.message}
+    )
+```
+
+### Flask Exception Handling
+
+Exception handling is built into the Flask adapter via `@bp.errorhandler(PIIError)`.
+
+### Sanic Exception Handling
+
+Exception handling is built into the Sanic adapter via `@bp.exception(PIIError)`.
 
 ## Data Models
 
