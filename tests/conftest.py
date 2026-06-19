@@ -1,37 +1,13 @@
 """
 Shared test fixtures for fastapi-pii tests.
 """
-from typing import Dict, Optional, Tuple
-
 import pytest
 from cryptography.fernet import Fernet
 
-from python_pii import PIIStorageBackend, PIITokenizationService
+from python_pii import PIITokenizationService
+from python_pii.backends import InMemoryBackend
 
-
-class InMemoryPIIBackend:
-    """In-memory storage backend for testing."""
-    
-    def __init__(self):
-        self._storage: Dict[str, Tuple[str, Dict[str, str]]] = {}
-    
-    async def store_pii(self, token: str, encrypted_pek: str, encrypted_data: Dict[str, str]) -> None:
-        self._storage[token] = (encrypted_pek, encrypted_data)
-    
-    async def get_pii(self, token: str) -> Optional[Tuple[str, Dict[str, str]]]:
-        return self._storage.get(token)
-    
-    async def update_pii(self, token: str, encrypted_pek: str, encrypted_data: Dict[str, str]) -> bool:
-        if token in self._storage:
-            self._storage[token] = (encrypted_pek, encrypted_data)
-            return True
-        return False
-    
-    async def delete_pii(self, token: str) -> bool:
-        if token in self._storage:
-            del self._storage[token]
-            return True
-        return False
+InMemoryPIIBackend = InMemoryBackend
 
 
 @pytest.fixture
