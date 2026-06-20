@@ -10,7 +10,7 @@ def verify_package():
     """Verify package structure and imports."""
     package_root = Path(__file__).parent
     errors = []
-    
+
     # Check required files exist
     required_files = [
         "pyproject.toml",
@@ -20,24 +20,19 @@ def verify_package():
         "piisafe/exceptions.py",
         "piisafe/service.py",
         "piisafe/models.py",
-        "piisafe/adapters/__init__.py",
-        "piisafe/adapters/base.py",
-        "piisafe/adapters/fastapi.py",
-        "piisafe/adapters/flask.py",
-        "piisafe/adapters/sanic.py",
+        "piisafe/backends/__init__.py",
+        "piisafe/backends/inmemory.py",
         "tests/conftest.py",
         "tests/test_service.py",
         "tests/test_models.py",
-        "tests/adapters/test_fastapi_adapter.py",
-        "tests/adapters/test_flask_adapter.py",
-        "tests/adapters/test_sanic_adapter.py",
+        "tests/test_backends.py",
     ]
-    
+
     for file_path in required_files:
         full_path = package_root / file_path
         if not full_path.exists():
             errors.append(f"Missing file: {file_path}")
-    
+
     # Try importing the package
     try:
         sys.path.insert(0, str(package_root))
@@ -51,30 +46,13 @@ def verify_package():
             PIITokenInvalidError,
             PIIEncryptionError,
             PIIDecryptionError,
+            PIIKeyError,
+            InMemoryBackend,
         )
         print("✓ All core imports successful")
     except ImportError as e:
         errors.append(f"Core import error: {e}")
-    
-    # Try importing adapters (may fail if frameworks not installed)
-    try:
-        from piisafe.adapters.fastapi import FastAPIAdapter
-        print("✓ FastAPI adapter available")
-    except ImportError:
-        print("⚠ FastAPI adapter not available (install with [fastapi] extra)")
-    
-    try:
-        from piisafe.adapters.flask import FlaskAdapter
-        print("✓ Flask adapter available")
-    except ImportError:
-        print("⚠ Flask adapter not available (install with [flask] extra)")
-    
-    try:
-        from piisafe.adapters.sanic import SanicAdapter
-        print("✓ Sanic adapter available")
-    except ImportError:
-        print("⚠ Sanic adapter not available (install with [sanic] extra)")
-    
+
     # Report results
     if errors:
         print("\n❌ Verification failed:")
@@ -86,13 +64,10 @@ def verify_package():
         print("\nPublic API:")
         print("  - PIITokenizationService")
         print("  - PIIStorageBackend (Protocol)")
+        print("  - InMemoryBackend")
         print("  - PIIData (dataclass)")
         print("  - TokenResponse (dataclass)")
-        print("  - PIIError (+ 4 subclasses)")
-        print("\nAdapters:")
-        print("  - FastAPIAdapter")
-        print("  - FlaskAdapter")
-        print("  - SanicAdapter")
+        print("  - PIIError (+ 5 subclasses)")
         return True
 
 
