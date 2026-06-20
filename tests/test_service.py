@@ -5,7 +5,7 @@ Tests for PIITokenizationService.
 import pytest
 from cryptography.fernet import Fernet
 
-from piisafe import PIIDecryptionError, PIIKeyError, PIITokenizationService
+from piisafe import PIIDecryptionError, PIIKeyError, PIITokenizationService, PIITokenInvalidError
 
 
 @pytest.mark.anyio
@@ -82,7 +82,7 @@ async def test_decrypt_tampered_data(storage_backend, fernet_key):
     encrypted_pek = kek.encrypt(pek_key).decode()
     
     # Store with tampered encrypted data
-    token = "test-token"
+    token = "test-token-format-ok"
     await storage_backend.store_pii(token, encrypted_pek, {"field": "tampered-invalid-data"})
     
     with pytest.raises(PIIDecryptionError):
@@ -286,7 +286,7 @@ async def test_rotate_kek_nonexistent(storage_backend):
     key = Fernet.generate_key()
     service = PIITokenizationService(storage=storage_backend, kek_keys=key)
     
-    success = await service.rotate_kek("nonexistent")
+    success = await service.rotate_kek("nonexistent-token-ok")
     assert success is False
 
 
@@ -352,3 +352,49 @@ async def test_rotate_all_peks_empty(storage_backend):
     
     count = await service.rotate_all_peks()
     assert count == 0
+
+
+# --- Token Validation Tests ---
+
+
+@pytest.mark.anyio
+async def test_retrieve_pii_empty_token_raises(pii_service):
+    """Test empty token raises PIITokenInvalidError."""
+    with pytest.raises(PIITokenInvalidError):
+        await pii_service.retrieve_pii("")
+
+
+@pytest.mark.anyio
+async def test_retrieve_pii_oversized_token_raises(pii_service):
+    """Test that oversized token raises PIITokenInvalidError."""
+    oversized = "a" * 100
+    with pytest.raises(PIITokenInvalidError):
+        await pii_service.retrieve_pii(oversized)
+
+
+@pytest.mark.anyio
+async def test_retrieve_pii_invalid_chars_token_raises(pii_service):
+    """Test that token with invalid characters raises PIITokenInvalidError."""
+    with pytest.raises(PIITokenInvalidError):
+        await pii_service.retrieve_pii("../../../etc/passwd")
+
+
+@pytest.mark.anyio
+async def test_update_pii_invalid_token_raises(pii_service):
+    """Test that update_pii raises PIITokenInvalidError for invalid token."""
+    with pytest.raises(PIITokenInvalidError):
+        await pii_service.update_pii("", {"email": "test@example.com"})
+
+
+@pytest.mark.anyio
+async def test_delete_pii_invalid_token_raises(pii_service):
+    """Test that delete_pii raises PIITokenInvalidError for invalid token."""
+    with pytest.raises(PIITokenInvalidError):
+        await pii_service.delete_pii("bad!")
+
+
+@pytest.mark.anyio
+async def test_rotate_kek_invalid_token_raises(pii_service):
+    """Test that rotate_kek raises PIITokenInvalidError for invalid token."""
+    with pytest.raises(PIITokenInvalidError):
+        await pii_service.rotate_kek("short")

@@ -3,15 +3,18 @@ PII tokenization service with encryption/decryption capabilities.
 """
 import logging
 import os
+import re
 import secrets
 from typing import List, Optional, Dict
 
 from cryptography.fernet import Fernet, InvalidToken, MultiFernet
 
-from piisafe.exceptions import PIIDecryptionError, PIIEncryptionError, PIIKeyError
+from piisafe.exceptions import PIIDecryptionError, PIIEncryptionError, PIIKeyError, PIITokenInvalidError
 from piisafe.protocols import PIIStorageBackend
 
 logger = logging.getLogger(__name__)
+
+_TOKEN_RE = re.compile(r"^[A-Za-z0-9_\-]{16,43}$")
 
 
 class PIITokenizationService:
@@ -91,6 +94,19 @@ class PIITokenizationService:
         return secrets.token_urlsafe(16)
     
     @staticmethod
+    def _validate_token(token: str) -> None:
+        """Validate token format.
+        
+        Args:
+            token: The token to validate.
+        
+        Raises:
+            PIITokenInvalidError: If token is empty, oversized, or contains invalid characters.
+        """
+        if not token or not _TOKEN_RE.match(token):
+            raise PIITokenInvalidError()
+    
+    @staticmethod
     def _encrypt_with_pek(data: str, pek: Fernet) -> str:
         """Encrypt data using a PEK."""
         try:
@@ -165,6 +181,7 @@ class PIITokenizationService:
         Returns:
             The decrypted PII data, or None if no data was found for the token.
         """
+        self._validate_token(token)
         result = await self.storage.get_pii(token)
         
         if result is None:
@@ -193,6 +210,7 @@ class PIITokenizationService:
         Returns:
             True if the data was updated, False otherwise.
         """
+        self._validate_token(token)
         pek_key = Fernet.generate_key()
         pek = Fernet(pek_key)
         
@@ -215,6 +233,7 @@ class PIITokenizationService:
         Returns:
             True if rotated, False if token not found.
         """
+        self._validate_token(token)
         result = await self.storage.get_pii(token)
         if result is None:
             return False
@@ -248,4 +267,5 @@ class PIITokenizationService:
         Returns:
             True if the data was deleted, False otherwise.
         """
+        self._validate_token(token)
         return await self.storage.delete_pii(token)
