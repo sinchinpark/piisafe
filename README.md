@@ -2,48 +2,27 @@
 
 **⚠️ This package is not ready for production yet and is under heavy development.**
 
-A framework-agnostic PII (Personally Identifiable Information) tokenization service for Python web applications. Supports FastAPI, Flask, and Sanic through adapter classes.
+A framework-agnostic PII (Personally Identifiable Information) tokenization service for Python. Provides `PIITokenizationService` for encrypting, storing, and retrieving PII data — use it inside any web framework's endpoints.
 
 ## Features
 
-- **Framework-agnostic core**: Zero dependencies on web frameworks
-- **Multiple framework support**: Adapters for FastAPI, Flask, and Sanic
+- **Framework-agnostic**: No web framework dependencies — use with FastAPI, Sanic, Flask, Django, or anything else
 - **Database-agnostic**: Implement the `PIIStorageBackend` protocol for any storage system
-- **Encryption**: Uses Fernet symmetric encryption (cryptography library)
+- **Encryption**: Fernet symmetric encryption with PEK/KEK key hierarchy
 - **Token generation**: Secure URL-safe tokens via `secrets.token_urlsafe(16)`
 - **Type-safe**: Full typing support with protocols and dataclasses
-- **Async-first**: Service is async-only; Flask adapter handles sync/async bridging
+- **Async-first**: Service is fully async
 
 ## Installation
 
-### Core package only
 ```bash
 pip install piisafe
-```
-
-### With framework support
-```bash
-# FastAPI
-pip install piisafe[fastapi]
-
-# Flask
-pip install piisafe[flask]
-
-# Sanic
-pip install piisafe[sanic]
-
-# All frameworks
-pip install piisafe[all]
-```
-
-### With uv
-```bash
-uv add piisafe[fastapi]
 ```
 
 ## Quick Start
 
 ```python
+from cryptography.fernet import Fernet
 from piisafe import PIITokenizationService, InMemoryBackend
 
 storage = InMemoryBackend()
@@ -54,127 +33,31 @@ data = await service.retrieve_pii(token)
 # data == {"email": "alice@example.com"}
 ```
 
-### Framework Examples
-
-<details>
-<summary>FastAPI</summary>
+## Service API
 
 ```python
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-from piisafe import PIITokenizationService, InMemoryBackend, PIIError
-from piisafe.adapters.fastapi import FastAPIAdapter
+# Tokenize PII data — returns a token
+token = await service.tokenize_pii({"email": "user@example.com", "ssn": "123-45-6789"})
 
-app = FastAPI()
-storage = InMemoryBackend()
-service = PIITokenizationService(storage=storage)
+# Retrieve decrypted PII data
+data = await service.retrieve_pii(token)
 
-@app.exception_handler(PIIError)
-async def pii_error_handler(request: Request, exc: PIIError):
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"error": exc.code, "message": exc.message}
-    )
+# Update PII data for an existing token
+await service.update_pii(token, {"email": "new@example.com"})
 
-adapter = FastAPIAdapter(service=service, prefix="/pii", tags=["PII"])
-app.include_router(adapter.get_router())
-```
-</details>
-
-<details>
-<summary>Flask</summary>
-
-```python
-from flask import Flask
-from piisafe import PIITokenizationService, InMemoryBackend
-from piisafe.adapters.flask import FlaskAdapter
-
-app = Flask(__name__)
-storage = InMemoryBackend()
-service = PIITokenizationService(storage=storage)
-
-adapter = FlaskAdapter(service=service, prefix="/pii")
-app.register_blueprint(adapter.get_router())
-```
-</details>
-
-<details>
-<summary>Sanic</summary>
-
-```python
-from sanic import Sanic
-from piisafe import PIITokenizationService, InMemoryBackend
-from piisafe.adapters.sanic import SanicAdapter
-
-app = Sanic("MyApp")
-storage = InMemoryBackend()
-service = PIITokenizationService(storage=storage)
-
-adapter = SanicAdapter(service=service, prefix="/pii")
-app.blueprint(adapter.get_router())
-```
-</details>
-
-## API Endpoints
-
-All adapters provide the same four endpoints:
-
-### POST `/pii/tokenize`
-Tokenize PII data.
-
-**Request:**
-```json
-{
-  "data": {
-    "email": "user@example.com",
-    "ssn": "123-45-6789"
-  }
-}
+# Delete PII data
+await service.delete_pii(token)
 ```
 
-**Response (201):**
-```json
-{
-  "token": "abc123xyz..."
-}
-```
+## Framework Examples
 
-### GET `/pii/retrieve/{token}`
-Retrieve PII data using a token.
+Runnable example apps showing how to integrate piisafe into web frameworks with authentication:
 
-**Response (200):**
-```json
-{
-  "data": {
-    "email": "user@example.com",
-    "ssn": "123-45-6789"
-  }
-}
-```
+- [`docs/examples/fastapi/`](docs/examples/fastapi/) — FastAPI with API key auth
+- [`docs/examples/sanic/`](docs/examples/sanic/) — Sanic with API key auth
+- [`docs/examples/flask/`](docs/examples/flask/) — Flask with API key auth
 
-### PUT `/pii/update/{token}`
-Update PII data for an existing token.
-
-**Request:**
-```json
-{
-  "data": {
-    "email": "newemail@example.com"
-  }
-}
-```
-
-**Response (200):**
-```json
-{
-  "token": "abc123xyz..."
-}
-```
-
-### DELETE `/pii/delete/{token}`
-Delete PII data for a token.
-
-**Response (204):** No content
+Each example includes `main.py` and `requirements.txt`.
 
 ## Configuration
 
@@ -287,28 +170,7 @@ The package provides these exceptions:
 - `PIIDecryptionError` - 500: Decryption failed (invalid/tampered data)
 - `PIIKeyError` - 500: Encryption key not configured
 
-### FastAPI Exception Handling
-
-```python
-from fastapi import Request
-from fastapi.responses import JSONResponse
-from piisafe import PIIError
-
-@app.exception_handler(PIIError)
-async def pii_error_handler(request: Request, exc: PIIError):
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"error": exc.code, "message": exc.message}
-    )
-```
-
-### Flask Exception Handling
-
-Exception handling is built into the Flask adapter via `@bp.errorhandler(PIIError)`.
-
-### Sanic Exception Handling
-
-Exception handling is built into the Sanic adapter via `@bp.exception(PIIError)`.
+Catch `PIIError` in your framework's exception handler to convert these into appropriate HTTP responses. See the example apps for FastAPI and Sanic implementations.
 
 ## Data Models
 
@@ -326,17 +188,8 @@ response = TokenResponse(token="abc123")
 
 ## Testing
 
-Run tests:
-
 ```bash
-cd packages/piisafe
 uv run pytest
-```
-
-Run tests for specific adapter:
-
-```bash
-uv run pytest tests/adapters/test_fastapi_adapter.py -v
 ```
 
 ## Architecture
@@ -349,53 +202,23 @@ piisafe/
 │   ├── exceptions.py        # Exception hierarchy
 │   ├── service.py           # PIITokenizationService
 │   ├── models.py            # Dataclass models
-│   ├── backends/            # Built-in storage backends
-│   │   ├── __init__.py
-│   │   └── inmemory.py      # InMemoryBackend
-│   └── adapters/
-│       ├── base.py          # BaseAdapter ABC
-│       ├── fastapi.py       # FastAPIAdapter
-│       ├── flask.py         # FlaskAdapter
-│       └── sanic.py         # SanicAdapter
+│   └── backends/
+│       ├── __init__.py
+│       └── inmemory.py      # InMemoryBackend
+├── docs/examples/
+│   ├── fastapi/             # FastAPI example app
+│   ├── sanic/               # Sanic example app
+│   └── flask/               # Flask example app
 └── tests/
     ├── test_service.py      # Core service tests
     ├── test_models.py       # Model validation tests
-    ├── test_backends.py     # Backend tests
-    └── adapters/
-        ├── test_fastapi_adapter.py
-        ├── test_flask_adapter.py
-        └── test_sanic_adapter.py
-```
-
-## Migration from fastapi-pii
-
-If you're migrating from the old `fastapi-pii` package:
-
-**Before:**
-```python
-from fastapi_pii import create_pii_router
-router = create_pii_router(service=pii_service)
-```
-
-**After:**
-```python
-from piisafe.adapters.fastapi import FastAPIAdapter
-adapter = FastAPIAdapter(service=pii_service)
-router = adapter.get_router()
-
-# Don't forget to add exception handler at app level!
+    └── test_backends.py     # Backend tests
 ```
 
 ## Requirements
 
 - Python >= 3.11
 - cryptography >= 42
-
-### Optional Framework Dependencies
-
-- FastAPI >= 0.115 + pydantic >= 2.0
-- Flask >= 2.3
-- Sanic >= 23.0
 
 ## License
 
@@ -412,11 +235,7 @@ Contributions are welcome! Please ensure:
 
 ## Security
 
-**IMPORTANT: The adapters expose unauthenticated endpoints.** You MUST add your own authentication/authorization layer before deploying in production:
-
-- **FastAPI**: Use `Depends()` with OAuth2 or API key validation
-- **Flask**: Use `@login_required` or similar middleware
-- **Sanic**: Use Sanic's built-in middleware or authentication decorators
+**IMPORTANT: This library does not provide HTTP endpoints or authentication.** You are responsible for adding authentication and authorization in your own endpoints. See the example apps for patterns.
 
 ### Key Management
 
@@ -449,4 +268,3 @@ export FERNET_KEY="your-generated-key-here"
 - [ ] Token expiration/TTL
 - [ ] Audit logging
 - [ ] Batch operations
-- [ ] Django adapter
