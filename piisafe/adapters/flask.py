@@ -63,14 +63,20 @@ class FlaskAdapter(BaseAdapter):
             except (TypeError, ValueError) as e:
                 return jsonify({"error": "VALIDATION_ERROR", "message": str(e)}), 400
         
-        @bp.route('/retrieve/<token>', methods=['GET'])
+        @bp.route('/retrieve', methods=['POST'])
         @async_route
-        async def retrieve_pii(token: str):
-            """Retrieve PII data using a token."""
+        async def retrieve_pii():
+            """Retrieve PII data using a token from body or header."""
+            data = request.get_json(silent=True) or {}
+            token = data.get("token") or request.headers.get("X-PII-Token")
+            if not token:
+                raise PIITokenNotFoundError("Token required in body or X-PII-Token header")
             pii_data = await self.service.retrieve_pii(token)
             if pii_data is None:
                 raise PIITokenNotFoundError("PII data not found for the provided token")
-            return jsonify({"data": pii_data}), 200
+            response = jsonify({"data": pii_data})
+            response.headers["Cache-Control"] = "no-store"
+            return response, 200
         
         @bp.route('/update/<token>', methods=['PUT'])
         @async_route

@@ -32,7 +32,7 @@ def test_tokenize_endpoint(app):
 
 
 def test_retrieve_endpoint(app):
-    """Test the retrieve endpoint."""
+    """Test the retrieve endpoint with token in body."""
     # First tokenize
     _, tokenize_response = app.test_client.post(
         "/pii/tokenize",
@@ -41,7 +41,25 @@ def test_retrieve_endpoint(app):
     token = tokenize_response.json["token"]
     
     # Then retrieve
-    _, response = app.test_client.get(f"/pii/retrieve/{token}")
+    _, response = app.test_client.post("/pii/retrieve", json={"token": token})
+    
+    assert response.status == 200
+    assert response.json["data"]["email"] == "test@example.com"
+    assert response.headers.get("cache-control") == "no-store"
+
+
+def test_retrieve_endpoint_via_header(app):
+    """Test the retrieve endpoint with token in X-PII-Token header."""
+    _, tokenize_response = app.test_client.post(
+        "/pii/tokenize",
+        json={"data": {"email": "test@example.com"}}
+    )
+    token = tokenize_response.json["token"]
+    
+    _, response = app.test_client.post(
+        "/pii/retrieve",
+        headers={"X-PII-Token": token}
+    )
     
     assert response.status == 200
     assert response.json["data"]["email"] == "test@example.com"
@@ -49,7 +67,7 @@ def test_retrieve_endpoint(app):
 
 def test_retrieve_nonexistent_token(app):
     """Test retrieving a token that doesn't exist returns 404."""
-    _, response = app.test_client.get("/pii/retrieve/nonexistent-token")
+    _, response = app.test_client.post("/pii/retrieve", json={"token": "nonexistent-token-ok"})
     
     assert response.status == 404
     assert response.json["error"] == "PII_TOKEN_NOT_FOUND"
@@ -74,7 +92,7 @@ def test_update_endpoint(app):
     assert response.json["token"] == token
     
     # Verify update
-    _, retrieve_response = app.test_client.get(f"/pii/retrieve/{token}")
+    _, retrieve_response = app.test_client.post("/pii/retrieve", json={"token": token})
     assert retrieve_response.json["data"]["email"] == "updated@example.com"
     assert retrieve_response.json["data"]["phone"] == "555-1234"
 
@@ -105,7 +123,7 @@ def test_delete_endpoint(app):
     assert response.status == 204
     
     # Verify deletion
-    _, retrieve_response = app.test_client.get(f"/pii/retrieve/{token}")
+    _, retrieve_response = app.test_client.post("/pii/retrieve", json={"token": token})
     assert retrieve_response.status == 404
 
 

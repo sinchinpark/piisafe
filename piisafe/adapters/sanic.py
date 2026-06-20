@@ -50,13 +50,19 @@ class SanicAdapter(BaseAdapter):
             except (TypeError, ValueError) as e:
                 return json({"error": "VALIDATION_ERROR", "message": str(e)}, status=400)
         
-        @bp.get('/retrieve/<token>')
-        async def retrieve_pii(request: Request, token: str):
-            """Retrieve PII data using a token."""
+        @bp.post('/retrieve')
+        async def retrieve_pii(request: Request):
+            """Retrieve PII data using a token from body or header."""
+            data = request.json or {}
+            token = data.get("token") or request.headers.get("X-PII-Token")
+            if not token:
+                raise PIITokenNotFoundError("Token required in body or X-PII-Token header")
             pii_data = await self.service.retrieve_pii(token)
             if pii_data is None:
                 raise PIITokenNotFoundError("PII data not found for the provided token")
-            return json({"data": pii_data}, status=200)
+            response = json({"data": pii_data}, status=200)
+            response.headers["Cache-Control"] = "no-store"
+            return response
         
         @bp.put('/update/<token>')
         async def update_pii(request: Request, token: str):

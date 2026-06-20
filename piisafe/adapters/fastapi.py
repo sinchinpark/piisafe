@@ -1,9 +1,10 @@
 """
 FastAPI adapter for PII tokenization service.
 """
-from typing import Dict
+from typing import Dict, Optional
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Header, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from piisafe.adapters.base import BaseAdapter
@@ -15,6 +16,11 @@ from piisafe.service import PIITokenizationService
 class PIIDataRequest(BaseModel):
     """Pydantic model for PII data requests."""
     data: Dict[str, str]
+
+
+class RetrieveRequest(BaseModel):
+    """Pydantic model for PII retrieve requests."""
+    token: str
 
 
 class TokenResponseModel(BaseModel):
@@ -53,13 +59,21 @@ class FastAPIAdapter(BaseAdapter):
             token = await self.service.tokenize_pii(pii_data.data)
             return TokenResponseModel(token=token)
         
-        @router.get("/retrieve/{token}", response_model=PIIDataRequest)
-        async def retrieve_pii(token: str) -> PIIDataRequest:
-            """Retrieve PII data using a token."""
+        @router.post("/retrieve", response_model=PIIDataRequest)
+        async def retrieve_pii(
+            body: Optional[RetrieveRequest] = None,
+            x_pii_token: Optional[str] = Header(default=None, alias="X-PII-Token"),
+        ) -> PIIDataRequest:
+            """Retrieve PII data using a token from body or header."""
+            token = (body.token if body else None) or x_pii_token
+            if not token:
+                raise PIITokenNotFoundError("Token required in body or X-PII-Token header")
             pii_data = await self.service.retrieve_pii(token)
             if pii_data is None:
                 raise PIITokenNotFoundError("PII data not found for the provided token")
-            return PIIDataRequest(data=pii_data)
+            response = JSONResponse(content={"data": pii_data})
+            response.headers["Cache-Control"] = "no-store"
+            return response
         
         @router.put("/update/{token}", response_model=TokenResponseModel)
         async def update_pii(token: str, pii_data: PIIDataRequest) -> TokenResponseModel:
