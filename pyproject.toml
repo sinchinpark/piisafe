@@ -8,32 +8,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-fastapi = [
-    "fastapi>=0.115",
-    "pydantic>=2.0",
-]
-flask = [
-    "flask>=2.3",
-]
-sanic = [
-    "sanic>=23.0",
-]
-all = [
-    "fastapi>=0.115",
-    "pydantic>=2.0",
-    "flask>=2.3",
-    "sanic>=23.0",
-]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
-    "httpx>=0.24",
-    "fastapi>=0.115",
-    "pydantic>=2.0",
-    "flask>=2.3",
-    "sanic>=23.0",
-    "sanic-testing>=23.0",
-    "anyio>=4.14.0"
+    "anyio>=4.14.0",
 ]
 
 [build-system]
