@@ -10,7 +10,7 @@ from piisafe.exceptions import (
     PIITokenInvalidError,
     PIITokenNotFoundError,
 )
-from piisafe.models import PIIData, TokenResponse
+from piisafe.models import PIIData, RotationFailure, RotationResult, TokenResponse
 from piisafe.protocols import PIIStorageBackend
 from piisafe.service import PIITokenizationService
 
@@ -20,6 +20,8 @@ __all__ = [
     "InMemoryBackend",
     "PIIData",
     "TokenResponse",
+    "RotationResult",
+    "RotationFailure",
     "PIIError",
     "PIITokenNotFoundError",
     "PIITokenInvalidError",

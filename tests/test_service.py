@@ -329,8 +329,11 @@ async def test_rotate_all_peks(storage_backend):
     )
     
     # Rotate all PEKs
-    count = await service_new.rotate_all_peks()
-    assert count == 2
+    result = await service_new.rotate_all_peks()
+    assert result.total == 2
+    assert result.rotated == 2
+    assert result.is_complete is True
+    assert len(result.failed) == 0
     
     # Verify data is still accessible
     assert await service_new.retrieve_pii(token1) == pii1
@@ -346,12 +349,15 @@ async def test_rotate_all_peks(storage_backend):
 
 @pytest.mark.anyio
 async def test_rotate_all_peks_empty(storage_backend):
-    """Test rotate_all_peks returns 0 on empty storage."""
+    """Test rotate_all_peks returns empty result on empty storage."""
     key = Fernet.generate_key()
     service = PIITokenizationService(storage=storage_backend, kek_keys=key)
     
-    count = await service.rotate_all_peks()
-    assert count == 0
+    result = await service.rotate_all_peks()
+    assert result.total == 0
+    assert result.rotated == 0
+    assert result.is_complete is True
+    assert result.failed == []
 
 
 # --- Token Validation Tests ---
@@ -398,3 +404,64 @@ async def test_rotate_kek_invalid_token_raises(pii_service):
     """Test that rotate_kek raises PIITokenInvalidError for invalid token."""
     with pytest.raises(PIITokenInvalidError):
         await pii_service.rotate_kek("short")
+
+
+# --- rotate_all_peks Failure Handling ---
+
+
+@pytest.mark.anyio
+async def test_rotate_all_peks_partial_failure(storage_backend):
+    """Test that rotate_all_peks continues past a failed token."""
+    old_key = Fernet.generate_key()
+    new_key = Fernet.generate_key()
+
+    service_old = PIITokenizationService(storage=storage_backend, kek_keys=old_key)
+    token_ok = await service_old.tokenize_pii({"email": "ok@example.com"})
+    token_bad = await service_old.tokenize_pii({"email": "bad@example.com"})
+    token_ok2 = await service_old.tokenize_pii({"email": "ok2@example.com"})
+
+    # Corrupt the PEK for token_bad so rotation fails with PIIDecryptionError
+    encrypted_pek, encrypted_data = await storage_backend.get_pii(token_bad)
+    corrupted_pek = "not-a-valid-fernet-token"
+    await storage_backend.update_pii(token_bad, corrupted_pek, encrypted_data)
+
+    service_new = PIITokenizationService(
+        storage=storage_backend,
+        kek_keys=[new_key, old_key],
+    )
+
+    result = await service_new.rotate_all_peks()
+
+    assert result.total == 3
+    assert result.rotated == 2
+    assert result.is_complete is False
+    assert len(result.failed) == 1
+    assert result.failed[0].token == token_bad
+    assert result.failed[0].error_type == "InvalidToken"
+
+    # The two good tokens should still be accessible and rotated
+    assert await service_new.retrieve_pii(token_ok) == {"email": "ok@example.com"}
+    assert await service_new.retrieve_pii(token_ok2) == {"email": "ok2@example.com"}
+
+
+@pytest.mark.anyio
+async def test_rotate_all_peks_all_fail(storage_backend):
+    """Test rotate_all_peks when every token is corrupted."""
+    key = Fernet.generate_key()
+    service = PIITokenizationService(storage=storage_backend, kek_keys=key)
+
+    token1 = await service.tokenize_pii({"email": "a@example.com"})
+    token2 = await service.tokenize_pii({"email": "b@example.com"})
+
+    # Corrupt both PEKs
+    for tok in [token1, token2]:
+        pek, data = await storage_backend.get_pii(tok)
+        await storage_backend.update_pii(tok, "corrupted-pek", data)
+
+    result = await service.rotate_all_peks()
+
+    assert result.total == 2
+    assert result.rotated == 0
+    assert result.is_complete is False
+    assert len(result.failed) == 2
+    assert {f.token for f in result.failed} == {token1, token2}

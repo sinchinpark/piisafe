@@ -9,7 +9,8 @@ from typing import List, Optional, Dict
 
 from cryptography.fernet import Fernet, InvalidToken, MultiFernet
 
-from piisafe.exceptions import PIIDecryptionError, PIIEncryptionError, PIIKeyError, PIITokenInvalidError
+from piisafe.exceptions import PIIDecryptionError, PIIEncryptionError, PIIError, PIIKeyError, PIITokenInvalidError
+from piisafe.models import RotationFailure, RotationResult
 from piisafe.protocols import PIIStorageBackend
 
 logger = logging.getLogger(__name__)
@@ -242,20 +243,31 @@ class PIITokenizationService:
         rotated_pek = self._multi_kek.rotate(encrypted_pek.encode()).decode()
         return await self.storage.update_pii(token, rotated_pek, encrypted_data)
     
-    async def rotate_all_peks(self) -> int:
+    async def rotate_all_peks(self) -> RotationResult:
         """Re-wrap all PEKs under the current primary KEK.
         
         Call this after adding a new primary KEK to migrate all records.
+        Individual token failures are caught and reported without stopping
+        the rotation of remaining tokens.
         
         Returns:
-            The number of records rotated.
+            A RotationResult with total, rotated, and failed counts.
         """
         tokens = await self.storage.list_tokens()
         rotated = 0
+        failures: list[RotationFailure] = []
         for token in tokens:
-            if await self.rotate_kek(token):
-                rotated += 1
-        return rotated
+            try:
+                if await self.rotate_kek(token):
+                    rotated += 1
+            except Exception as e:
+                logger.error("Failed to rotate token %s: %s", token, e)
+                failures.append(RotationFailure(
+                    token=token,
+                    error_type=type(e).__name__,
+                    message=str(e),
+                ))
+        return RotationResult(total=len(tokens), rotated=rotated, failed=failures)
     
     async def delete_pii(self, token: str) -> bool:
         """
