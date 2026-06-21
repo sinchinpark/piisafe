@@ -1,5 +1,5 @@
 """
-python-pii: Framework-agnostic PII tokenization service.
+piisafe: Framework-agnostic PII tokenization service.
 """
 from piisafe.backends import InMemoryBackend
 from piisafe.exceptions import (
