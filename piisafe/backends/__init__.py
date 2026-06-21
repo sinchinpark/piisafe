@@ -1,5 +1,5 @@
 """
-Built-in storage backends for python-pii.
+Built-in storage backends for piisafe.
 """
 from piisafe.backends.inmemory import InMemoryBackend
 

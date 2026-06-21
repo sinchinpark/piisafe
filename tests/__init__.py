@@ -1,1 +1,1 @@
-"""Tests for fastapi-pii package."""
+"""Tests for piisafe package."""
